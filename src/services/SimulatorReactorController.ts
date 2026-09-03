@@ -40,13 +40,14 @@ export class SimulatorReactorController implements IReactorController {
     overheadRPM: number,
     magneticRPM: number
   ): ReactorState {
+    const isHeating = targetTemp >= currentTemp;
     return {
       id,
       name,
       currentTemp,
       targetTemp,
-      heatingActive: true,
-      coolingActive: false,
+      heatingActive: isHeating,
+      coolingActive: !isHeating,
       thermalPowerPct: 0,
       overheadActualRPM: overheadRPM,
       overheadTargetRPM: overheadRPM,
@@ -105,6 +106,16 @@ export class SimulatorReactorController implements IReactorController {
       const clamped = Math.max(-20, Math.min(200, tempCelsius));
       this.states[idx].targetTemp = clamped;
       this.integralErr[idx] = 0; // reset integral on new setpoint
+
+      // AUTOMATIC THERMAL MODE SWITCHING:
+      if (clamped >= this.states[idx].currentTemp) {
+        this.states[idx].heatingActive = true;
+        this.states[idx].coolingActive = false;
+      } else {
+        this.states[idx].coolingActive = true;
+        this.states[idx].heatingActive = false;
+      }
+
       this.notifySubscribers();
     }
   }
@@ -184,7 +195,6 @@ export class SimulatorReactorController implements IReactorController {
   public async startOverheadStirrer(reactorId: number): Promise<void> {
     const idx = reactorId - 1;
     if (idx >= 0 && idx < 4) {
-      // MUTUALLY EXCLUSIVE STIRRING INTERLOCK: Stop Magnetic drive automatically!
       this.states[idx].magneticActive = false;
       this.states[idx].magneticActualRPM = 0;
 
@@ -209,7 +219,6 @@ export class SimulatorReactorController implements IReactorController {
   public async startMagneticStirrer(reactorId: number): Promise<void> {
     const idx = reactorId - 1;
     if (idx >= 0 && idx < 4) {
-      // MUTUALLY EXCLUSIVE STIRRING INTERLOCK: Stop Overhead drive automatically!
       this.states[idx].overheadActive = false;
       this.states[idx].overheadActualRPM = 0;
 
@@ -293,6 +302,15 @@ export class SimulatorReactorController implements IReactorController {
         state.stepTimerSeconds += dt;
       }
 
+      // AUTOMATIC CLIMATE CONTROL SWITCHING:
+      if (state.targetTemp > state.currentTemp + 0.1) {
+        state.heatingActive = true;
+        state.coolingActive = false;
+      } else if (state.targetTemp < state.currentTemp - 0.1) {
+        state.coolingActive = true;
+        state.heatingActive = false;
+      }
+
       // Check Fault Injections
       state.pt100Fault = this.faultConfig.pt100Open[i];
       state.overTempFault = this.faultConfig.overTemp[i] || state.currentTemp > 210;
@@ -302,14 +320,13 @@ export class SimulatorReactorController implements IReactorController {
 
       if (state.pt100Fault || state.overTempFault || state.stirrerStallFault || state.commLossFault) {
         state.status = 'ALARM';
-        // Emergency hardware shutdown on fault
         state.heatingActive = false;
+        state.coolingActive = false;
         state.thermalPowerPct = 0;
       }
 
       // 1. Thermal Block Thermodynamics & PID Simulation
       if (state.pt100Fault) {
-        // PT100 fault sensor returns invalid reading
         state.currentTemp = -999;
       } else {
         const err = state.targetTemp - state.currentTemp;
@@ -320,14 +337,13 @@ export class SimulatorReactorController implements IReactorController {
         const Kd = 1.2;
 
         this.integralErr[i] += err * dt;
-        // Anti-windup
         this.integralErr[i] = Math.max(-100, Math.min(100, this.integralErr[i]));
         const derivErr = (err - this.lastErr[i]) / dt;
         this.lastErr[i] = err;
 
         let pidOutput = Kp * err + Ki * this.integralErr[i] + Kd * derivErr;
 
-        // Force enable/disable if heating/cooling mode toggled
+        // Force enable/disable based on automatic mode
         if (!state.heatingActive && pidOutput > 0) pidOutput = 0;
         if (!state.coolingActive && pidOutput < 0) pidOutput = 0;
 

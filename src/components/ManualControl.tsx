@@ -78,6 +78,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
   const isCurrentOverheadRunning = currentReactor.overheadActive && currentReactor.overheadActualRPM > 0;
   const isCurrentMagneticRunning = currentReactor.magneticActive && currentReactor.magneticActualRPM > 0;
   const isCurrentStirringActive = isCurrentOverheadRunning || isCurrentMagneticRunning;
+  const isHeatingActive = currentReactor.targetTemp >= currentReactor.currentTemp;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -134,14 +135,14 @@ export const ManualControl: React.FC<ManualControlProps> = ({
       {/* Main Control Console for Selected Reactor */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
         
-        {/* 1. TEMPERATURE SUBSYSTEM PANEL */}
+        {/* 1. AUTOMATIC TEMPERATURE SUBSYSTEM PANEL */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Thermometer size={20} color="#f97316" /> TEMPERATURE CONTROL
+              <Thermometer size={20} color={isHeatingActive ? "#f97316" : "#38bdf8"} /> AUTOMATIC TEMPERATURE CONTROL
             </h3>
-            <span style={{ fontSize: '0.75rem', background: 'rgba(249, 115, 22, 0.15)', color: '#f97316', padding: '3px 10px', borderRadius: '10px', fontWeight: 600 }}>
-              Range: -20°C to +200°C
+            <span style={{ fontSize: '0.75rem', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '3px 10px', borderRadius: '10px', fontWeight: 600 }}>
+              -20°C to +200°C Auto PID
             </span>
           </div>
 
@@ -149,7 +150,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', background: 'rgba(15, 23, 42, 0.6)', padding: '16px', borderRadius: '12px' }}>
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ACTUAL TEMP (PT100)</div>
-              <div className="font-mono" style={{ fontSize: '2.4rem', fontWeight: 700, color: currentReactor.currentTemp > 75 ? '#f97316' : '#38bdf8' }}>
+              <div className="font-mono" style={{ fontSize: '2.4rem', fontWeight: 700, color: isHeatingActive ? '#f97316' : '#38bdf8' }}>
                 {currentReactor.pt100Fault ? 'FAULT' : `${currentReactor.currentTemp.toFixed(1)}°C`}
               </div>
             </div>
@@ -212,47 +213,38 @@ export const ManualControl: React.FC<ManualControlProps> = ({
             ))}
           </div>
 
-          {/* Heating / Cooling Action Controls */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', paddingTop: '8px' }}>
-            <button
-              onClick={() => currentReactor.heatingActive ? controller.stopHeating(currentReactor.id) : controller.startHeating(currentReactor.id)}
-              style={{
-                padding: '12px',
-                borderRadius: '10px',
-                border: currentReactor.heatingActive ? '1px solid #f97316' : '1px solid var(--border-glass)',
-                background: currentReactor.heatingActive ? 'rgba(249, 115, 22, 0.2)' : 'rgba(30, 41, 59, 0.6)',
-                color: currentReactor.heatingActive ? '#f97316' : 'var(--text-main)',
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
-            >
-              <Flame size={18} /> {currentReactor.heatingActive ? 'HEATER ON' : 'START HEATING'}
-            </button>
+          {/* AUTOMATIC HIGHLIGHTED CLIMATE STATUS BANNER */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 18px',
+            borderRadius: '12px',
+            background: isHeatingActive ? 'rgba(249, 115, 22, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+            border: isHeatingActive ? '1px solid #f97316' : '1px solid #38bdf8',
+            boxShadow: isHeatingActive ? '0 0 15px rgba(249, 115, 22, 0.25)' : '0 0 15px rgba(56, 189, 248, 0.25)',
+            transition: 'all 0.3s ease'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {isHeatingActive ? (
+                <div style={{ background: '#f97316', color: '#fff', padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(249, 115, 22, 0.6)' }}>
+                  <Flame size={22} className="pulse" />
+                </div>
+              ) : (
+                <div style={{ background: '#38bdf8', color: '#fff', padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(56, 189, 248, 0.6)' }}>
+                  <Snowflake size={22} className="pulse" />
+                </div>
+              )}
 
-            <button
-              onClick={() => currentReactor.coolingActive ? controller.stopCooling(currentReactor.id) : controller.startCooling(currentReactor.id)}
-              style={{
-                padding: '12px',
-                borderRadius: '10px',
-                border: currentReactor.coolingActive ? '1px solid #38bdf8' : '1px solid var(--border-glass)',
-                background: currentReactor.coolingActive ? 'rgba(56, 189, 248, 0.2)' : 'rgba(30, 41, 59, 0.6)',
-                color: currentReactor.coolingActive ? '#38bdf8' : 'var(--text-main)',
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
-            >
-              <Snowflake size={18} /> {currentReactor.coolingActive ? 'CHILLER ON' : 'START COOLING'}
-            </button>
+              <div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: isHeatingActive ? '#f97316' : '#38bdf8' }}>
+                  {isHeatingActive ? 'AUTOMATIC HEATING MODE' : 'AUTOMATIC COOLING MODE'}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Thermal Output: {Math.abs(currentReactor.thermalPowerPct)}% • System auto-switches based on setpoint.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

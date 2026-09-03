@@ -4,8 +4,6 @@ import {
   Fan, 
   Flame, 
   Snowflake, 
-  Play, 
-  Square, 
   Sliders,
   Gauge,
   AlertTriangle
@@ -26,7 +24,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
 
   const handleToggleReactorStirring = (r: ReactorState) => {
-    const isStirringActive = r.overheadActive || r.magneticActive || r.overheadActualRPM > 0 || r.magneticActualRPM > 0;
+    const isStirringActive = (r.overheadActive && r.overheadActualRPM > 0) || (r.magneticActive && r.magneticActualRPM > 0);
     if (isStirringActive) {
       controller.stopOverheadStirrer(r.id);
       controller.stopMagneticStirrer(r.id);
@@ -39,7 +37,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const handleToggleOverhead = (r: ReactorState) => {
-    const isOverheadRunning = r.overheadActive || r.overheadActualRPM > 0;
+    const isOverheadRunning = r.overheadActive && r.overheadActualRPM > 0;
     if (isOverheadRunning) {
       controller.stopOverheadStirrer(r.id);
     } else {
@@ -50,7 +48,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const handleToggleMagnetic = (r: ReactorState) => {
-    const isMagneticRunning = r.magneticActive || r.magneticActualRPM > 0;
+    const isMagneticRunning = r.magneticActive && r.magneticActualRPM > 0;
     if (isMagneticRunning) {
       controller.stopMagneticStirrer(r.id);
     } else {
@@ -83,7 +81,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>HEATING LOAD</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              {reactors.filter(r => r.heatingActive).length} Active Heaters
+              {reactors.filter(r => r.heatingActive && r.thermalPowerPct > 0).length} Active Heaters
             </div>
           </div>
         </div>
@@ -95,7 +93,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>COOLING LOAD</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              {reactors.filter(r => r.coolingActive).length} Active Cooling
+              {reactors.filter(r => r.coolingActive && r.thermalPowerPct < 0).length} Active Cooling
             </div>
           </div>
         </div>
@@ -118,13 +116,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {reactors.map(r => {
           const isAlarm = r.status === 'ALARM';
           const isStirringActive = (r.overheadActive && r.overheadActualRPM > 0) || (r.magneticActive && r.magneticActualRPM > 0);
+          const isHeating = r.targetTemp >= r.currentTemp;
           const tempColor = r.pt100Fault
             ? '#ef4444'
-            : r.currentTemp > 75
+            : isHeating
             ? '#f97316'
-            : r.currentTemp < 20
-            ? '#38bdf8'
-            : '#34d399';
+            : '#38bdf8';
 
           return (
             <div
@@ -142,8 +139,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               }}
             >
               {/* Background Heat/Cool Glow Overlay */}
-              {r.heatingActive && <div className="heat-glow" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.4 }} />}
-              {r.coolingActive && <div className="cool-glow" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.4 }} />}
+              {isHeating && <div className="heat-glow" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.4 }} />}
+              {!isHeating && <div className="cool-glow" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.4 }} />}
 
               {/* Card Top Bar */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
@@ -194,20 +191,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
 
-              {/* Temperature Readout Section */}
+              {/* Temperature Readout Section (AUTOMATIC CLIMATE HIGHLIGHTS) */}
               <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-glass)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Thermometer size={14} color={tempColor} /> TEMPERATURE (PT100)
                   </span>
-                  {r.heatingActive && (
-                    <span style={{ fontSize: '0.7rem', color: '#f97316', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px' }}>
-                      <Flame size={12} /> HEATING ({r.thermalPowerPct}%)
+
+                  {/* AUTOMATICALLY HIGHLIGHTED CLIMATE ICON BADGE */}
+                  {isHeating ? (
+                    <span style={{ fontSize: '0.7rem', background: 'rgba(249, 115, 22, 0.2)', border: '1px solid #f97316', color: '#f97316', padding: '2px 8px', borderRadius: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 0 10px rgba(249,115,22,0.4)' }}>
+                      <Flame size={14} className="pulse" /> HEATING ({Math.abs(r.thermalPowerPct)}%)
                     </span>
-                  )}
-                  {r.coolingActive && (
-                    <span style={{ fontSize: '0.7rem', color: '#38bdf8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px' }}>
-                      <Snowflake size={12} /> COOLING ({r.thermalPowerPct}%)
+                  ) : (
+                    <span style={{ fontSize: '0.7rem', background: 'rgba(56, 189, 248, 0.2)', border: '1px solid #38bdf8', color: '#38bdf8', padding: '2px 8px', borderRadius: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 0 10px rgba(56,189,248,0.4)' }}>
+                      <Snowflake size={14} className="pulse" /> COOLING ({Math.abs(r.thermalPowerPct)}%)
                     </span>
                   )}
                 </div>
@@ -297,35 +295,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
 
-              {/* Action Toolbar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 'auto' }}>
+              {/* Action Toolbar (CLEAN SINGLE CONTROL BUTTON) */}
+              <div style={{ display: 'flex', alignItems: 'center', marginTop: 'auto' }}>
                 <button
                   onClick={() => onSelectReactorForManual(r.id)}
                   className="btn-primary"
-                  style={{ flex: 1, justifyContent: 'center', fontSize: '0.8rem', padding: '8px' }}
+                  style={{ width: '100%', justifyContent: 'center', fontSize: '0.85rem', padding: '10px' }}
                 >
-                  <Sliders size={14} /> Control R{r.id}
+                  <Sliders size={16} /> Open R{r.id} Control Console
                 </button>
-
-                {r.heatingActive ? (
-                  <button
-                    onClick={() => controller.stopHeating(r.id)}
-                    className="btn-secondary"
-                    style={{ fontSize: '0.8rem', padding: '8px 12px', color: '#f97316' }}
-                    title="Stop Heating"
-                  >
-                    <Square size={14} /> Stop Heat
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => controller.startHeating(r.id)}
-                    className="btn-secondary"
-                    style={{ fontSize: '0.8rem', padding: '8px 12px' }}
-                    title="Start Heating"
-                  >
-                    <Play size={14} /> Heat
-                  </button>
-                )}
               </div>
             </div>
           );
