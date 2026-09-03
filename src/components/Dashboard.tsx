@@ -39,6 +39,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
+  const handleToggleThermalControl = (r: ReactorState) => {
+    const isThermalActive = r.heatingActive || r.coolingActive;
+    if (isThermalActive) {
+      controller.stopHeating(r.id); // stops both heating and cooling
+    } else {
+      controller.startHeating(r.id); // starts temperature PID control
+    }
+  };
+
   const handleToggleOverhead = (r: ReactorState) => {
     const isOverheadRunning = r.overheadActive && r.overheadActualRPM > 0;
     if (isOverheadRunning) {
@@ -134,6 +143,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {reactors.map(r => {
           const isAlarm = r.status === 'ALARM';
           const isStirringActive = (r.overheadActive && r.overheadActualRPM > 0) || (r.magneticActive && r.magneticActualRPM > 0);
+          const isThermalActive = r.heatingActive || r.coolingActive;
           const isHeating = r.targetTemp >= r.currentTemp;
           const tempColor = r.pt100Fault
             ? '#ef4444'
@@ -157,8 +167,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               }}
             >
               {/* Background Heat/Cool Glow Overlay */}
-              {isHeating && <div className="heat-glow" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.4 }} />}
-              {!isHeating && <div className="cool-glow" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.4 }} />}
+              {isThermalActive && isHeating && <div className="heat-glow" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.4 }} />}
+              {isThermalActive && !isHeating && <div className="cool-glow" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.4 }} />}
 
               {/* Card Top Bar */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
@@ -183,99 +193,105 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 </div>
 
-                {/* Top Right Action: Play / Stop Symbol Button & Fan Status Icon */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {/* Play / Stop Symbol Button */}
-                  <button
-                    onClick={() => handleToggleReactorStirring(r)}
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      border: 'none',
-                      background: isStirringActive ? '#ef4444' : '#10b981',
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      boxShadow: isStirringActive ? '0 0 10px rgba(239,68,68,0.5)' : '0 0 10px rgba(16,185,129,0.5)',
-                      transition: 'all 0.2s'
-                    }}
-                    title={isStirringActive ? "Stop Reactor Stirring" : "Play / Start Reactor Stirring"}
-                  >
-                    {isStirringActive ? <Square size={14} fill="#ffffff" /> : <Play size={14} fill="#ffffff" style={{ marginLeft: '2px' }} />}
-                  </button>
-
-                  {/* Dynamic Fan Icon */}
-                  <div 
-                    onClick={() => handleToggleReactorStirring(r)}
-                    title={isStirringActive ? "Click Fan Icon to STOP Stirring" : "Click Fan Icon to START Stirring"}
-                    style={{
-                      padding: '7px',
-                      borderRadius: '50%',
-                      background: isAlarm ? 'rgba(239,68,68,0.2)' : isStirringActive ? 'rgba(16,185,129,0.25)' : 'rgba(148,163,184,0.15)',
-                      color: isAlarm ? '#ef4444' : isStirringActive ? '#10b981' : '#94a3b8',
-                      border: `1px solid ${isAlarm ? '#ef4444' : isStirringActive ? '#10b981' : 'rgba(148,163,184,0.3)'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {isAlarm ? (
-                      <AlertTriangle size={16} className="pulse" />
-                    ) : (
-                      <Fan size={16} className={isStirringActive ? 'spin-fast' : ''} />
-                    )}
-                  </div>
+                {/* Top Right Action: Dynamic Stirring Fan Status Icon */}
+                <div 
+                  onClick={() => handleToggleReactorStirring(r)}
+                  title={isStirringActive ? "Click Fan Icon to STOP Stirring" : "Click Fan Icon to START Stirring"}
+                  style={{
+                    padding: '7px',
+                    borderRadius: '50%',
+                    background: isAlarm ? 'rgba(239,68,68,0.2)' : isStirringActive ? 'rgba(16,185,129,0.25)' : 'rgba(148,163,184,0.15)',
+                    color: isAlarm ? '#ef4444' : isStirringActive ? '#10b981' : '#94a3b8',
+                    border: `1px solid ${isAlarm ? '#ef4444' : isStirringActive ? '#10b981' : 'rgba(148,163,184,0.3)'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {isAlarm ? (
+                    <AlertTriangle size={16} className="pulse" />
+                  ) : (
+                    <Fan size={16} className={isStirringActive ? 'spin-fast' : ''} />
+                  )}
                 </div>
               </div>
 
-              {/* Temperature Readout Section with Direct Dashboard Setpoint Editor */}
+              {/* Temperature Readout Section (WITH DEDICATED PLAY/STOP BUTTON FOR TEMP CONTROL) */}
               <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border-glass)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Thermometer size={14} color={tempColor} /> TEMPERATURE (PT100)
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    
+                    {/* PLAY / STOP SYMBOL BUTTON FOR TEMPERATURE CONTROL */}
+                    <button
+                      onClick={() => handleToggleThermalControl(r)}
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: isThermalActive ? '#ef4444' : '#10b981',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        boxShadow: isThermalActive ? '0 0 10px rgba(239,68,68,0.6)' : '0 0 10px rgba(16,185,129,0.6)',
+                        transition: 'all 0.2s'
+                      }}
+                      title={isThermalActive ? "STOP Temperature PID Control" : "PLAY / START Temperature PID Control"}
+                    >
+                      {isThermalActive ? <Square size={12} fill="#ffffff" /> : <Play size={12} fill="#ffffff" style={{ marginLeft: '2px' }} />}
+                    </button>
+
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Thermometer size={14} color={tempColor} /> TEMP CONTROL
+                    </span>
+                  </div>
 
                   {/* HIGHLIGHTED FLAME / SNOWFLAKE ICON ONLY (NO TEXT) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {isHeating ? (
-                      <span 
-                        title={`Heating Active (${Math.abs(r.thermalPowerPct)}%)`}
-                        style={{
-                          background: 'rgba(249, 115, 22, 0.25)',
-                          border: '1px solid #f97316',
-                          color: '#f97316',
-                          padding: '4px 8px',
-                          borderRadius: '12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          boxShadow: '0 0 10px rgba(249,115,22,0.4)'
-                        }}
-                      >
-                        <Flame size={16} className="pulse" />
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{Math.abs(r.thermalPowerPct)}%</span>
-                      </span>
+                    {isThermalActive ? (
+                      isHeating ? (
+                        <span 
+                          title={`Heating Active (${Math.abs(r.thermalPowerPct)}%)`}
+                          style={{
+                            background: 'rgba(249, 115, 22, 0.25)',
+                            border: '1px solid #f97316',
+                            color: '#f97316',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            boxShadow: '0 0 10px rgba(249,115,22,0.4)'
+                          }}
+                        >
+                          <Flame size={16} className="pulse" />
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{Math.abs(r.thermalPowerPct)}%</span>
+                        </span>
+                      ) : (
+                        <span 
+                          title={`Cooling Active (${Math.abs(r.thermalPowerPct)}%)`}
+                          style={{
+                            background: 'rgba(56, 189, 248, 0.25)',
+                            border: '1px solid #38bdf8',
+                            color: '#38bdf8',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            boxShadow: '0 0 10px rgba(56,189,248,0.4)'
+                          }}
+                        >
+                          <Snowflake size={16} className="pulse" />
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{Math.abs(r.thermalPowerPct)}%</span>
+                        </span>
+                      )
                     ) : (
-                      <span 
-                        title={`Cooling Active (${Math.abs(r.thermalPowerPct)}%)`}
-                        style={{
-                          background: 'rgba(56, 189, 248, 0.25)',
-                          border: '1px solid #38bdf8',
-                          color: '#38bdf8',
-                          padding: '4px 8px',
-                          borderRadius: '12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          boxShadow: '0 0 10px rgba(56,189,248,0.4)'
-                        }}
-                      >
-                        <Snowflake size={16} className="pulse" />
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{Math.abs(r.thermalPowerPct)}%</span>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', background: 'rgba(148,163,184,0.1)', padding: '2px 8px', borderRadius: '10px' }}>
+                        OFF
                       </span>
                     )}
                   </div>

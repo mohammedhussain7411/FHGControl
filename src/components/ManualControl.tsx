@@ -4,7 +4,9 @@ import {
   Fan, 
   Flame, 
   Snowflake, 
-  Clock
+  Clock,
+  Play,
+  Square
 } from 'lucide-react';
 import type { ReactorState } from '../types/reactor';
 import type { IReactorController } from '../services/IReactorController';
@@ -68,6 +70,15 @@ export const ManualControl: React.FC<ManualControlProps> = ({
     }
   };
 
+  const handleToggleThermalControl = (reactorId: number) => {
+    const isThermalActive = currentReactor.heatingActive || currentReactor.coolingActive;
+    if (isThermalActive) {
+      controller.stopHeating(reactorId);
+    } else {
+      controller.startHeating(reactorId);
+    }
+  };
+
   const formatTimer = (secs: number) => {
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
@@ -78,6 +89,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
   const isCurrentOverheadRunning = currentReactor.overheadActive && currentReactor.overheadActualRPM > 0;
   const isCurrentMagneticRunning = currentReactor.magneticActive && currentReactor.magneticActualRPM > 0;
   const isCurrentStirringActive = isCurrentOverheadRunning || isCurrentMagneticRunning;
+  const isThermalActive = currentReactor.heatingActive || currentReactor.coolingActive;
   const isHeatingActive = currentReactor.targetTemp >= currentReactor.currentTemp;
 
   return (
@@ -138,9 +150,34 @@ export const ManualControl: React.FC<ManualControlProps> = ({
         {/* 1. AUTOMATIC TEMPERATURE SUBSYSTEM PANEL */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Thermometer size={20} color={isHeatingActive ? "#f97316" : "#38bdf8"} /> AUTOMATIC TEMPERATURE CONTROL
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {/* PLAY / STOP SYMBOL BUTTON FOR TEMP CONTROL */}
+              <button
+                onClick={() => handleToggleThermalControl(currentReactor.id)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: isThermalActive ? '#ef4444' : '#10b981',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: isThermalActive ? '0 0 12px rgba(239,68,68,0.6)' : '0 0 12px rgba(16,185,129,0.6)',
+                  transition: 'all 0.2s'
+                }}
+                title={isThermalActive ? "Stop Temperature Control" : "Play / Start Temperature Control"}
+              >
+                {isThermalActive ? <Square size={14} fill="#ffffff" /> : <Play size={14} fill="#ffffff" style={{ marginLeft: '2px' }} />}
+              </button>
+
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Thermometer size={20} color={isHeatingActive ? "#f97316" : "#38bdf8"} /> TEMPERATURE CONTROL
+              </h3>
+            </div>
+
             <span style={{ fontSize: '0.75rem', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '3px 10px', borderRadius: '10px', fontWeight: 600 }}>
               -20°C to +200°C Auto PID
             </span>
@@ -213,20 +250,23 @@ export const ManualControl: React.FC<ManualControlProps> = ({
             ))}
           </div>
 
-          {/* AUTOMATIC HIGHLIGHTED CLIMATE STATUS BANNER */}
+          {/* CLIMATE STATUS DISPLAY WITH ICON AND POWER OUTPUT (NO TEXT LABELS) */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '14px 18px',
             borderRadius: '12px',
-            background: isHeatingActive ? 'rgba(249, 115, 22, 0.15)' : 'rgba(56, 189, 248, 0.15)',
-            border: isHeatingActive ? '1px solid #f97316' : '1px solid #38bdf8',
-            boxShadow: isHeatingActive ? '0 0 15px rgba(249, 115, 22, 0.25)' : '0 0 15px rgba(56, 189, 248, 0.25)',
+            background: !isThermalActive ? 'rgba(148, 163, 184, 0.1)' : isHeatingActive ? 'rgba(249, 115, 22, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+            border: !isThermalActive ? '1px solid rgba(148, 163, 184, 0.2)' : isHeatingActive ? '1px solid #f97316' : '1px solid #38bdf8',
             transition: 'all 0.3s ease'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {isHeatingActive ? (
+              {!isThermalActive ? (
+                <div style={{ background: 'rgba(148,163,184,0.2)', color: '#94a3b8', padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Thermometer size={22} />
+                </div>
+              ) : isHeatingActive ? (
                 <div style={{ background: '#f97316', color: '#fff', padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(249, 115, 22, 0.6)' }}>
                   <Flame size={22} className="pulse" />
                 </div>
@@ -237,11 +277,11 @@ export const ManualControl: React.FC<ManualControlProps> = ({
               )}
 
               <div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: isHeatingActive ? '#f97316' : '#38bdf8' }}>
-                  {isHeatingActive ? 'AUTOMATIC HEATING MODE' : 'AUTOMATIC COOLING MODE'}
+                <div style={{ fontSize: '1rem', fontWeight: 700, color: !isThermalActive ? '#94a3b8' : isHeatingActive ? '#f97316' : '#38bdf8' }}>
+                  {!isThermalActive ? 'TEMP CONTROL OFF' : `POWER OUTPUT: ${Math.abs(currentReactor.thermalPowerPct)}%`}
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Thermal Output: {Math.abs(currentReactor.thermalPowerPct)}% • System auto-switches based on setpoint.
+                  Click Play/Stop button above to start or stop thermal PID loop.
                 </div>
               </div>
             </div>
