@@ -460,7 +460,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     }}
                     title="Click to set Overhead RPM using numeric keypad"
                   >
-                    SET: {r.overheadTargetRPM} RPM
+                    {r.overheadTargetRPM} RPM
                   </div>
                 </div>
 
@@ -507,7 +507,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     }}
                     title="Click to set Magnetic RPM using numeric keypad"
                   >
-                    SET: {r.magneticTargetRPM} RPM
+                    {r.magneticTargetRPM} RPM
                   </div>
                 </div>
               </div>

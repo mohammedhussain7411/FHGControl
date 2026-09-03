@@ -403,7 +403,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
                 }}
                 title="Click to set Overhead RPM using numeric keypad popup"
               >
-                SET: {currentReactor.overheadTargetRPM} RPM
+                {currentReactor.overheadTargetRPM} RPM
               </div>
 
               <button
@@ -463,7 +463,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
                 }}
                 title="Click to set Magnetic RPM using numeric keypad popup"
               >
-                SET: {currentReactor.magneticTargetRPM} RPM
+                {currentReactor.magneticTargetRPM} RPM
               </div>
 
               <button
