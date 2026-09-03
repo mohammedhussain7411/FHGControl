@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Delete, Thermometer } from 'lucide-react';
+import { Check, X, Delete } from 'lucide-react';
 
 interface TempKeypadModalProps {
   isOpen: boolean;
@@ -13,7 +13,6 @@ interface TempKeypadModalProps {
 export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
   isOpen,
   reactorId,
-  reactorName,
   initialTemp,
   onConfirm,
   onCancel
@@ -62,152 +61,91 @@ export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
     }
   };
 
-  const handleClear = () => {
-    setErrorMsg(null);
-    setValStr('0');
-  };
-
-  const handlePreset = (num: number) => {
-    setErrorMsg(null);
-    setValStr(num.toString());
-  };
-
   const handleConfirmSubmit = () => {
     const num = parseFloat(valStr);
     if (isNaN(num)) {
-      setErrorMsg('Invalid number entry');
+      setErrorMsg('Invalid number');
       return;
     }
     if (num < -20 || num > 200) {
-      setErrorMsg('Temperature must be between -20.0°C and 200.0°C');
+      setErrorMsg('-20.0°C to 200.0°C');
       return;
     }
     onConfirm(reactorId, Number(num.toFixed(1)));
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 9999,
-      background: 'rgba(5, 10, 20, 0.85)',
-      backdropFilter: 'blur(8px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px'
-    }}>
+    <>
+      {/* Invisible Click-outside Backdrop */}
       <div 
-        className="glass-panel" 
+        onClick={onCancel}
         style={{
-          width: '100%',
-          maxWidth: '420px',
-          padding: '24px',
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9998,
+          background: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(2px)'
+        }}
+      />
+
+      {/* Lightweight Keypad Popup Card */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 9999,
+          width: '300px',
+          background: '#0f172a',
+          padding: '16px',
           borderRadius: '16px',
-          border: '1px solid var(--border-glass)',
-          boxShadow: '0 0 40px rgba(2, 132, 199, 0.3)',
+          border: '2px solid #38bdf8',
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(56, 189, 248, 0.3)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '20px',
-          animation: 'fadeIn 0.2s ease-out'
+          gap: '12px',
+          animation: 'fadeIn 0.15s ease-out'
         }}
       >
-        {/* Modal Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)', paddingBottom: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '8px', borderRadius: '10px' }}>
-              <Thermometer size={20} />
-            </div>
-            <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                Set Temp — R{reactorId}
-              </h3>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{reactorName}</span>
-            </div>
-          </div>
-
-          <button
-            onClick={onCancel}
-            style={{
-              background: 'rgba(239, 68, 68, 0.15)',
-              border: '1px solid #ef4444',
-              color: '#ef4444',
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-            title="Cancel (X)"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Temperature Value Display */}
+        {/* Value Display Box */}
         <div style={{
-          background: 'rgba(15, 23, 42, 0.9)',
-          borderRadius: '12px',
-          padding: '16px',
-          border: errorMsg ? '1px solid #ef4444' : '1px solid #38bdf8',
-          textAlign: 'right',
-          boxShadow: 'inner'
+          background: '#020617',
+          borderRadius: '8px',
+          padding: '10px 14px',
+          border: errorMsg ? '1px solid #ef4444' : '1px solid #334155',
+          textAlign: 'right'
         }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '4px' }}>
-            TARGET SETPOINT (-20°C TO +200°C)
+          <div style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'flex', justifyContent: 'space-between' }}>
+            <span>R{reactorId} SETPOINT</span>
+            <span>-20 to +200°C</span>
           </div>
-          <div className="font-mono" style={{ fontSize: '2.6rem', fontWeight: 700, color: '#38bdf8', letterSpacing: '-1px' }}>
-            {valStr}<span style={{ fontSize: '1.4rem', color: 'var(--text-muted)' }}>°C</span>
+          <div className="font-mono" style={{ fontSize: '2rem', fontWeight: 700, color: '#38bdf8' }}>
+            {valStr}<span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>°C</span>
           </div>
           {errorMsg && (
-            <div style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '4px', fontWeight: 600 }}>
+            <div style={{ fontSize: '0.7rem', color: '#ef4444', marginTop: '2px' }}>
               {errorMsg}
             </div>
           )}
         </div>
 
-        {/* Preset Chips */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
-          {[-20, 0, 25, 50, 80, 120, 180, 200].map(p => (
-            <button
-              key={p}
-              onClick={() => handlePreset(p)}
-              style={{
-                padding: '6px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-glass)',
-                background: 'rgba(30, 41, 59, 0.6)',
-                color: '#94a3b8',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              {p}°C
-            </button>
-          ))}
-        </div>
-
-        {/* Touchscreen Numeric Keypad Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+        {/* Compact 3x4 Keypad Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
           {['7', '8', '9', '4', '5', '6', '1', '2', '3'].map(k => (
             <button
               key={k}
               onClick={() => handleKeyPress(k)}
               style={{
-                padding: '16px',
-                fontSize: '1.4rem',
+                padding: '12px 0',
+                fontSize: '1.3rem',
                 fontWeight: 700,
                 fontFamily: 'monospace',
-                background: 'rgba(30, 41, 59, 0.7)',
+                background: '#1e293b',
                 color: '#ffffff',
-                border: '1px solid var(--border-glass)',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                transition: 'background 0.15s'
+                border: '1px solid #334155',
+                borderRadius: '8px',
+                cursor: 'pointer'
               }}
             >
               {k}
@@ -217,14 +155,14 @@ export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
           <button
             onClick={() => handleKeyPress('-')}
             style={{
-              padding: '16px',
-              fontSize: '1.4rem',
+              padding: '12px 0',
+              fontSize: '1.2rem',
               fontWeight: 700,
               fontFamily: 'monospace',
-              background: 'rgba(30, 41, 59, 0.7)',
+              background: '#1e293b',
               color: '#38bdf8',
-              border: '1px solid var(--border-glass)',
-              borderRadius: '10px',
+              border: '1px solid #334155',
+              borderRadius: '8px',
               cursor: 'pointer'
             }}
           >
@@ -234,14 +172,14 @@ export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
           <button
             onClick={() => handleKeyPress('0')}
             style={{
-              padding: '16px',
-              fontSize: '1.4rem',
+              padding: '12px 0',
+              fontSize: '1.3rem',
               fontWeight: 700,
               fontFamily: 'monospace',
-              background: 'rgba(30, 41, 59, 0.7)',
+              background: '#1e293b',
               color: '#ffffff',
-              border: '1px solid var(--border-glass)',
-              borderRadius: '10px',
+              border: '1px solid #334155',
+              borderRadius: '8px',
               cursor: 'pointer'
             }}
           >
@@ -251,14 +189,14 @@ export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
           <button
             onClick={() => handleKeyPress('.')}
             style={{
-              padding: '16px',
-              fontSize: '1.4rem',
+              padding: '12px 0',
+              fontSize: '1.3rem',
               fontWeight: 700,
               fontFamily: 'monospace',
-              background: 'rgba(30, 41, 59, 0.7)',
+              background: '#1e293b',
               color: '#38bdf8',
-              border: '1px solid var(--border-glass)',
-              borderRadius: '10px',
+              border: '1px solid #334155',
+              borderRadius: '8px',
               cursor: 'pointer'
             }}
           >
@@ -266,90 +204,67 @@ export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
           </button>
         </div>
 
-        {/* Clear & Backspace row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          <button
-            onClick={handleClear}
-            style={{
-              padding: '10px',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              background: 'rgba(148, 163, 184, 0.15)',
-              color: '#94a3b8',
-              border: '1px solid rgba(148, 163, 184, 0.3)',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            CLEAR (C)
-          </button>
-
+        {/* Backspace & Action Buttons Row */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+          {/* Backspace Button */}
           <button
             onClick={handleBackspace}
             style={{
-              padding: '10px',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              background: 'rgba(148, 163, 184, 0.15)',
-              color: '#94a3b8',
-              border: '1px solid rgba(148, 163, 184, 0.3)',
+              padding: '12px 0',
+              background: '#334155',
+              color: '#cbd5e1',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Backspace"
+          >
+            <Delete size={18} />
+          </button>
+
+          {/* Cancel (X) Button */}
+          <button
+            onClick={onCancel}
+            style={{
+              padding: '12px 0',
+              background: 'rgba(239, 68, 68, 0.2)',
+              border: '1px solid #ef4444',
+              color: '#ef4444',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Cancel (X)"
+          >
+            <X size={20} />
+          </button>
+
+          {/* Confirm (Tick mark) Button */}
+          <button
+            onClick={handleConfirmSubmit}
+            style={{
+              padding: '12px 0',
+              background: '#10b981',
+              border: 'none',
+              color: '#ffffff',
               borderRadius: '8px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px'
+              boxShadow: '0 0 10px rgba(16, 185, 129, 0.5)'
             }}
+            title="Confirm (Check mark)"
           >
-            <Delete size={16} /> BACKSPACE
-          </button>
-        </div>
-
-        {/* Bottom Confirm (Tick) & Cancel (X) Buttons */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '6px' }}>
-          <button
-            onClick={onCancel}
-            style={{
-              padding: '14px',
-              borderRadius: '10px',
-              background: 'rgba(239, 68, 68, 0.2)',
-              border: '1px solid #ef4444',
-              color: '#ef4444',
-              fontWeight: 700,
-              fontSize: '1rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              boxShadow: '0 0 15px rgba(239, 68, 68, 0.2)'
-            }}
-          >
-            <X size={20} /> CANCEL
-          </button>
-
-          <button
-            onClick={handleConfirmSubmit}
-            style={{
-              padding: '14px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              border: 'none',
-              color: '#ffffff',
-              fontWeight: 700,
-              fontSize: '1rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)'
-            }}
-          >
-            <Check size={22} /> CONFIRM
+            <Check size={22} />
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 };
