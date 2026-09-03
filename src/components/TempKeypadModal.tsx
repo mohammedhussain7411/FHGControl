@@ -1,35 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, Delete } from 'lucide-react';
 
-interface TempKeypadModalProps {
-  isOpen: boolean;
+export interface KeypadConfig {
   reactorId: number;
-  reactorName: string;
-  initialTemp: number;
-  onConfirm: (reactorId: number, newTemp: number) => void;
+  type: 'TEMP' | 'OVERHEAD_RPM' | 'MAGNETIC_RPM';
+  title: string;
+  unit: string;
+  minVal: number;
+  maxVal: number;
+  initialVal: number;
+  allowDecimal?: boolean;
+}
+
+interface NumericKeypadModalProps {
+  isOpen: boolean;
+  config: KeypadConfig;
+  onConfirm: (reactorId: number, type: 'TEMP' | 'OVERHEAD_RPM' | 'MAGNETIC_RPM', newVal: number) => void;
   onCancel: () => void;
 }
 
-export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
+export const TempKeypadModal: React.FC<NumericKeypadModalProps> = ({
   isOpen,
-  reactorId,
-  initialTemp,
+  config,
   onConfirm,
   onCancel
 }) => {
-  const [valStr, setValStr] = useState<string>(initialTemp.toString());
+  const [valStr, setValStr] = useState<string>(config ? config.initialVal.toString() : '0');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    setValStr(initialTemp.toString());
-    setErrorMsg(null);
-  }, [initialTemp, isOpen]);
+    if (config) {
+      setValStr(config.initialVal.toString());
+      setErrorMsg(null);
+    }
+  }, [config, isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !config) return null;
+
+  const { reactorId, type, title, unit, minVal, maxVal, allowDecimal } = config;
 
   const handleKeyPress = (char: string) => {
     setErrorMsg(null);
     if (char === '-') {
+      if (minVal >= 0) return; // ignore negative if minVal is non-negative
       if (valStr.startsWith('-')) {
         setValStr(valStr.substring(1));
       } else {
@@ -39,6 +52,7 @@ export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
     }
 
     if (char === '.') {
+      if (!allowDecimal) return; // ignore decimal if not allowed
       if (!valStr.includes('.')) {
         setValStr(valStr + '.');
       }
@@ -67,11 +81,12 @@ export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
       setErrorMsg('Invalid number');
       return;
     }
-    if (num < -20 || num > 200) {
-      setErrorMsg('-20.0°C to 200.0°C');
+    if (num < minVal || num > maxVal) {
+      setErrorMsg(`${minVal} to ${maxVal}${unit}`);
       return;
     }
-    onConfirm(reactorId, Number(num.toFixed(1)));
+    const finalVal = allowDecimal ? Number(num.toFixed(1)) : Math.round(num);
+    onConfirm(reactorId, type, finalVal);
   };
 
   return (
@@ -117,11 +132,11 @@ export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
           textAlign: 'right'
         }}>
           <div style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'flex', justifyContent: 'space-between' }}>
-            <span>R{reactorId} SETPOINT</span>
-            <span>-20 to +200°C</span>
+            <span>R{reactorId} {title}</span>
+            <span>{minVal} to {maxVal}{unit}</span>
           </div>
           <div className="font-mono" style={{ fontSize: '2rem', fontWeight: 700, color: '#38bdf8' }}>
-            {valStr}<span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>°C</span>
+            {valStr}<span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>{unit}</span>
           </div>
           {errorMsg && (
             <div style={{ fontSize: '0.7rem', color: '#ef4444', marginTop: '2px' }}>
@@ -154,16 +169,17 @@ export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
 
           <button
             onClick={() => handleKeyPress('-')}
+            disabled={minVal >= 0}
             style={{
               padding: '12px 0',
               fontSize: '1.2rem',
               fontWeight: 700,
               fontFamily: 'monospace',
               background: '#1e293b',
-              color: '#38bdf8',
+              color: minVal >= 0 ? '#475569' : '#38bdf8',
               border: '1px solid #334155',
               borderRadius: '8px',
-              cursor: 'pointer'
+              cursor: minVal >= 0 ? 'not-allowed' : 'pointer'
             }}
           >
             ±
@@ -188,16 +204,17 @@ export const TempKeypadModal: React.FC<TempKeypadModalProps> = ({
 
           <button
             onClick={() => handleKeyPress('.')}
+            disabled={!allowDecimal}
             style={{
               padding: '12px 0',
               fontSize: '1.3rem',
               fontWeight: 700,
               fontFamily: 'monospace',
               background: '#1e293b',
-              color: '#38bdf8',
+              color: !allowDecimal ? '#475569' : '#38bdf8',
               border: '1px solid #334155',
               borderRadius: '8px',
-              cursor: 'pointer'
+              cursor: !allowDecimal ? 'not-allowed' : 'pointer'
             }}
           >
             .

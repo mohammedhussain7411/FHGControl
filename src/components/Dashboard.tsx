@@ -7,13 +7,12 @@ import {
   Gauge,
   AlertTriangle,
   Play,
-  Square,
-  Plus,
-  Minus
+  Square
 } from 'lucide-react';
 import type { ReactorState } from '../types/reactor';
 import type { IReactorController } from '../services/IReactorController';
 import { TempKeypadModal } from './TempKeypadModal';
+import type { KeypadConfig } from './TempKeypadModal';
 
 interface DashboardProps {
   reactors: ReactorState[];
@@ -26,7 +25,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   controller,
   onSelectReactorForManual
 }) => {
-  const [activeKeypadReactor, setActiveKeypadReactor] = useState<ReactorState | null>(null);
+  const [activeKeypadConfig, setActiveKeypadConfig] = useState<KeypadConfig | null>(null);
 
   const handleToggleReactorStirring = (r: ReactorState) => {
     const isStirringActive = (r.overheadActive && r.overheadActualRPM > 0) || (r.magneticActive && r.magneticActualRPM > 0);
@@ -71,32 +70,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  const handleConfirmKeypadTemp = (reactorId: number, newTemp: number) => {
-    controller.setTargetTemperature(reactorId, newTemp);
-    setActiveKeypadReactor(null);
-  };
-
-  const handleAdjustOverheadRPM = (reactorId: number, currentTarget: number, delta: number) => {
-    const next = Math.max(0, Math.min(1500, currentTarget + delta));
-    controller.setOverheadSpeed(reactorId, next);
-  };
-
-  const handleAdjustMagneticRPM = (reactorId: number, currentTarget: number, delta: number) => {
-    const next = Math.max(0, Math.min(2000, currentTarget + delta));
-    controller.setMagneticSpeed(reactorId, next);
+  const handleConfirmKeypadSubmit = (reactorId: number, type: 'TEMP' | 'OVERHEAD_RPM' | 'MAGNETIC_RPM', newVal: number) => {
+    if (type === 'TEMP') {
+      controller.setTargetTemperature(reactorId, newVal);
+    } else if (type === 'OVERHEAD_RPM') {
+      controller.setOverheadSpeed(reactorId, newVal);
+    } else if (type === 'MAGNETIC_RPM') {
+      controller.setMagneticSpeed(reactorId, newVal);
+    }
+    setActiveKeypadConfig(null);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Temperature Keypad Popup Modal */}
-      {activeKeypadReactor && (
+      {/* Universal Numeric Keypad Popup Modal */}
+      {activeKeypadConfig && (
         <TempKeypadModal
-          isOpen={!!activeKeypadReactor}
-          reactorId={activeKeypadReactor.id}
-          reactorName={activeKeypadReactor.name}
-          initialTemp={activeKeypadReactor.targetTemp}
-          onConfirm={handleConfirmKeypadTemp}
-          onCancel={() => setActiveKeypadReactor(null)}
+          isOpen={!!activeKeypadConfig}
+          config={activeKeypadConfig}
+          onConfirm={handleConfirmKeypadSubmit}
+          onCancel={() => setActiveKeypadConfig(null)}
         />
       )}
 
@@ -226,7 +219,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
 
-              {/* DUAL SENSOR TEMPERATURE READOUT PANEL (CLEAN T_R & T_J SYMBOLS, NO WORDINGS) */}
+              {/* DUAL SENSOR TEMPERATURE READOUT PANEL */}
               <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border-glass)' }}>
                 
                 {/* Header Row: Play/Stop Button + Clean T_R / T_J Mode Selector + Flame/Snowflake Icon */}
@@ -342,7 +335,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 </div>
 
-                {/* DUAL SENSOR READOUTS GRID: T_R , T_J & SETPOINT (NO WORDINGS) */}
+                {/* DUAL SENSOR READOUTS GRID: T_R , T_J & SETPOINT */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', alignItems: 'center' }}>
                   {/* T_R (REACTOR TEMP) */}
                   <div style={{
@@ -376,7 +369,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                   {/* SETPOINT BUTTON TRIGGERING KEYPAD POPUP */}
                   <div 
-                    onClick={() => setActiveKeypadReactor(r)}
+                    onClick={() => setActiveKeypadConfig({
+                      reactorId: r.id,
+                      type: 'TEMP',
+                      title: 'SETPOINT',
+                      unit: '°C',
+                      minVal: -20,
+                      maxVal: 200,
+                      initialVal: r.targetTemp,
+                      allowDecimal: true
+                    })}
                     style={{
                       textAlign: 'right',
                       cursor: 'pointer',
@@ -387,7 +389,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       transition: 'all 0.2s ease',
                       boxShadow: '0 0 10px rgba(56, 189, 248, 0.1)'
                     }}
-                    title="Click to change setpoint using numeric keypad"
+                    title="Click to change temperature setpoint using keypad"
                   >
                     <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700, fontFamily: 'monospace' }}>
                       T<sub>SET</sub>
@@ -432,42 +434,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     {r.overheadActualRPM} <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>RPM</span>
                   </div>
 
-                  {/* Direct Dashboard RPM Setpoint Input */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px' }}>
-                    <button
-                      onClick={() => handleAdjustOverheadRPM(r.id, r.overheadTargetRPM, -100)}
-                      style={{ background: 'rgba(30, 41, 59, 0.8)', border: '1px solid var(--border-glass)', color: '#fff', borderRadius: '4px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                    >
-                      <Minus size={10} />
-                    </button>
-
-                    <input
-                      type="number"
-                      min="0"
-                      max="1500"
-                      step="50"
-                      className="font-mono"
-                      value={r.overheadTargetRPM}
-                      onChange={(e) => controller.setOverheadSpeed(r.id, parseInt(e.target.value, 10) || 0)}
-                      style={{
-                        width: '100%',
-                        padding: '2px 4px',
-                        background: 'rgba(15, 23, 42, 0.8)',
-                        border: '1px solid rgba(168, 85, 247, 0.4)',
-                        borderRadius: '4px',
-                        color: '#a855f7',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        textAlign: 'center'
-                      }}
-                    />
-
-                    <button
-                      onClick={() => handleAdjustOverheadRPM(r.id, r.overheadTargetRPM, 100)}
-                      style={{ background: 'rgba(30, 41, 59, 0.8)', border: '1px solid var(--border-glass)', color: '#fff', borderRadius: '4px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                    >
-                      <Plus size={10} />
-                    </button>
+                  {/* Direct Dashboard Overhead RPM Keypad Trigger */}
+                  <div 
+                    onClick={() => setActiveKeypadConfig({
+                      reactorId: r.id,
+                      type: 'OVERHEAD_RPM',
+                      title: 'OVERHEAD RPM',
+                      unit: ' RPM',
+                      minVal: 0,
+                      maxVal: 1500,
+                      initialVal: r.overheadTargetRPM,
+                      allowDecimal: false
+                    })}
+                    style={{
+                      cursor: 'pointer',
+                      marginTop: '6px',
+                      padding: '4px',
+                      background: 'rgba(15, 23, 42, 0.8)',
+                      border: '1px solid rgba(168, 85, 247, 0.4)',
+                      borderRadius: '4px',
+                      color: '#a855f7',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      textAlign: 'center'
+                    }}
+                    title="Click to set Overhead RPM using numeric keypad"
+                  >
+                    SET: {r.overheadTargetRPM} RPM
                   </div>
                 </div>
 
@@ -488,42 +481,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     {r.magneticActualRPM} <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>RPM</span>
                   </div>
 
-                  {/* Direct Dashboard RPM Setpoint Input */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px' }}>
-                    <button
-                      onClick={() => handleAdjustMagneticRPM(r.id, r.magneticTargetRPM, -100)}
-                      style={{ background: 'rgba(30, 41, 59, 0.8)', border: '1px solid var(--border-glass)', color: '#fff', borderRadius: '4px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                    >
-                      <Minus size={10} />
-                    </button>
-
-                    <input
-                      type="number"
-                      min="0"
-                      max="2000"
-                      step="50"
-                      className="font-mono"
-                      value={r.magneticTargetRPM}
-                      onChange={(e) => controller.setMagneticSpeed(r.id, parseInt(e.target.value, 10) || 0)}
-                      style={{
-                        width: '100%',
-                        padding: '2px 4px',
-                        background: 'rgba(15, 23, 42, 0.8)',
-                        border: '1px solid rgba(6, 182, 212, 0.4)',
-                        borderRadius: '4px',
-                        color: '#06b6d4',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        textAlign: 'center'
-                      }}
-                    />
-
-                    <button
-                      onClick={() => handleAdjustMagneticRPM(r.id, r.magneticTargetRPM, 100)}
-                      style={{ background: 'rgba(30, 41, 59, 0.8)', border: '1px solid var(--border-glass)', color: '#fff', borderRadius: '4px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                    >
-                      <Plus size={10} />
-                    </button>
+                  {/* Direct Dashboard Magnetic RPM Keypad Trigger */}
+                  <div 
+                    onClick={() => setActiveKeypadConfig({
+                      reactorId: r.id,
+                      type: 'MAGNETIC_RPM',
+                      title: 'MAGNETIC RPM',
+                      unit: ' RPM',
+                      minVal: 0,
+                      maxVal: 2000,
+                      initialVal: r.magneticTargetRPM,
+                      allowDecimal: false
+                    })}
+                    style={{
+                      cursor: 'pointer',
+                      marginTop: '6px',
+                      padding: '4px',
+                      background: 'rgba(15, 23, 42, 0.8)',
+                      border: '1px solid rgba(6, 182, 212, 0.4)',
+                      borderRadius: '4px',
+                      color: '#06b6d4',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      textAlign: 'center'
+                    }}
+                    title="Click to set Magnetic RPM using numeric keypad"
+                  >
+                    SET: {r.magneticTargetRPM} RPM
                   </div>
                 </div>
               </div>

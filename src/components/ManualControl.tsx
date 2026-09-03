@@ -12,6 +12,7 @@ import type { ReactorState } from '../types/reactor';
 import type { IReactorController } from '../services/IReactorController';
 import { auditLogger } from '../services/AuditLogger';
 import { TempKeypadModal } from './TempKeypadModal';
+import type { KeypadConfig } from './TempKeypadModal';
 
 interface ManualControlProps {
   reactors: ReactorState[];
@@ -28,32 +29,18 @@ export const ManualControl: React.FC<ManualControlProps> = ({
 }) => {
   const currentReactor = reactors.find(r => r.id === selectedReactorId) || reactors[0];
 
-  const [isKeypadOpen, setIsKeypadOpen] = useState<boolean>(false);
-  const [overheadInput, setOverheadInput] = useState<string>(currentReactor.overheadTargetRPM.toString());
-  const [magneticInput, setMagneticInput] = useState<string>(currentReactor.magneticTargetRPM.toString());
+  const [activeKeypadConfig, setActiveKeypadConfig] = useState<KeypadConfig | null>(null);
 
-  // Update local input state when selected reactor changes
-  React.useEffect(() => {
-    setOverheadInput(currentReactor.overheadTargetRPM.toString());
-    setMagneticInput(currentReactor.magneticTargetRPM.toString());
-  }, [selectedReactorId, currentReactor.overheadTargetRPM, currentReactor.magneticTargetRPM]);
-
-  const handleConfirmKeypadTemp = (reactorId: number, newTemp: number) => {
-    controller.setTargetTemperature(reactorId, newTemp);
-    auditLogger.logAction('Operator', 'OPERATOR', 'Manual Temperature Changed via Keypad', `Reactor ${reactorId} target temp set to ${newTemp}°C`, reactorId, `${currentReactor.targetTemp}°C`, `${newTemp}°C`);
-    setIsKeypadOpen(false);
-  };
-
-  const handleApplyOverhead = (val: number) => {
-    const clamped = val <= 0 ? 0 : Math.max(50, Math.min(1500, val));
-    setOverheadInput(clamped.toString());
-    controller.setOverheadSpeed(currentReactor.id, clamped);
-  };
-
-  const handleApplyMagnetic = (val: number) => {
-    const clamped = val <= 0 ? 0 : Math.max(100, Math.min(2000, val));
-    setMagneticInput(clamped.toString());
-    controller.setMagneticSpeed(currentReactor.id, clamped);
+  const handleConfirmKeypadSubmit = (reactorId: number, type: 'TEMP' | 'OVERHEAD_RPM' | 'MAGNETIC_RPM', newVal: number) => {
+    if (type === 'TEMP') {
+      controller.setTargetTemperature(reactorId, newVal);
+      auditLogger.logAction('Operator', 'OPERATOR', 'Manual Temperature Changed via Keypad', `Reactor ${reactorId} target temp set to ${newVal}°C`, reactorId, `${currentReactor.targetTemp}°C`, `${newVal}°C`);
+    } else if (type === 'OVERHEAD_RPM') {
+      controller.setOverheadSpeed(reactorId, newVal);
+    } else if (type === 'MAGNETIC_RPM') {
+      controller.setMagneticSpeed(reactorId, newVal);
+    }
+    setActiveKeypadConfig(null);
   };
 
   const handleToggleTabStirring = (e: React.MouseEvent, r: ReactorState) => {
@@ -94,15 +81,13 @@ export const ManualControl: React.FC<ManualControlProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Temperature Keypad Popup Modal */}
-      {isKeypadOpen && (
+      {/* Universal Numeric Keypad Popup Modal */}
+      {activeKeypadConfig && (
         <TempKeypadModal
-          isOpen={isKeypadOpen}
-          reactorId={currentReactor.id}
-          reactorName={currentReactor.name}
-          initialTemp={currentReactor.targetTemp}
-          onConfirm={handleConfirmKeypadTemp}
-          onCancel={() => setIsKeypadOpen(false)}
+          isOpen={!!activeKeypadConfig}
+          config={activeKeypadConfig}
+          onConfirm={handleConfirmKeypadSubmit}
+          onCancel={() => setActiveKeypadConfig(null)}
         />
       )}
 
@@ -251,7 +236,16 @@ export const ManualControl: React.FC<ManualControlProps> = ({
             </div>
 
             <div 
-              onClick={() => setIsKeypadOpen(true)}
+              onClick={() => setActiveKeypadConfig({
+                reactorId: currentReactor.id,
+                type: 'TEMP',
+                title: 'SETPOINT',
+                unit: '°C',
+                minVal: -20,
+                maxVal: 200,
+                initialVal: currentReactor.targetTemp,
+                allowDecimal: true
+              })}
               style={{
                 cursor: 'pointer',
                 background: 'rgba(30, 41, 59, 0.6)',
@@ -273,7 +267,16 @@ export const ManualControl: React.FC<ManualControlProps> = ({
 
           {/* Touch Keypad Button Trigger */}
           <button
-            onClick={() => setIsKeypadOpen(true)}
+            onClick={() => setActiveKeypadConfig({
+              reactorId: currentReactor.id,
+              type: 'TEMP',
+              title: 'SETPOINT',
+              unit: '°C',
+              minVal: -20,
+              maxVal: 200,
+              initialVal: currentReactor.targetTemp,
+              allowDecimal: true
+            })}
             className="btn-primary"
             style={{ width: '100%', justifyContent: 'center', fontSize: '0.9rem', padding: '12px' }}
           >
@@ -350,7 +353,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
             </span>
           </div>
 
-          {/* OVERHEAD STIRRER */}
+          {/* OVERHEAD STIRRER WITH NUMERIC KEYPAD TRIGGER */}
           <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a855f7', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -373,27 +376,47 @@ export const ManualControl: React.FC<ManualControlProps> = ({
                 {currentReactor.overheadActualRPM} <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>RPM</span>
               </div>
 
-              <input
-                type="range"
-                min="0"
-                max="1500"
-                step="25"
-                value={overheadInput}
-                onChange={(e) => handleApplyOverhead(parseInt(e.target.value, 10))}
-                style={{ flex: 1, accentColor: '#a855f7', cursor: 'pointer' }}
-              />
+              {/* Clickable RPM Setpoint Keypad Trigger */}
+              <div 
+                onClick={() => setActiveKeypadConfig({
+                  reactorId: currentReactor.id,
+                  type: 'OVERHEAD_RPM',
+                  title: 'OVERHEAD RPM',
+                  unit: ' RPM',
+                  minVal: 0,
+                  maxVal: 1500,
+                  initialVal: currentReactor.overheadTargetRPM,
+                  allowDecimal: false
+                })}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  background: 'rgba(15, 23, 42, 0.9)',
+                  border: '1px solid rgba(168, 85, 247, 0.4)',
+                  borderRadius: '8px',
+                  color: '#a855f7',
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  boxShadow: '0 0 10px rgba(168, 85, 247, 0.1)'
+                }}
+                title="Click to set Overhead RPM using numeric keypad popup"
+              >
+                SET: {currentReactor.overheadTargetRPM} RPM
+              </div>
 
               <button
                 onClick={() => isCurrentOverheadRunning ? controller.stopOverheadStirrer(currentReactor.id) : controller.startOverheadStirrer(currentReactor.id)}
                 className={isCurrentOverheadRunning ? 'btn-danger' : 'btn-primary'}
-                style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                style={{ fontSize: '0.8rem', padding: '8px 16px' }}
               >
                 {isCurrentOverheadRunning ? 'STOP' : 'START'}
               </button>
             </div>
           </div>
 
-          {/* MAGNETIC STIRRER */}
+          {/* MAGNETIC STIRRER WITH NUMERIC KEYPAD TRIGGER */}
           <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#06b6d4', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -413,20 +436,40 @@ export const ManualControl: React.FC<ManualControlProps> = ({
                 {currentReactor.magneticActualRPM} <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>RPM</span>
               </div>
 
-              <input
-                type="range"
-                min="0"
-                max="2000"
-                step="50"
-                value={magneticInput}
-                onChange={(e) => handleApplyMagnetic(parseInt(e.target.value, 10))}
-                style={{ flex: 1, accentColor: '#06b6d4', cursor: 'pointer' }}
-              />
+              {/* Clickable RPM Setpoint Keypad Trigger */}
+              <div 
+                onClick={() => setActiveKeypadConfig({
+                  reactorId: currentReactor.id,
+                  type: 'MAGNETIC_RPM',
+                  title: 'MAGNETIC RPM',
+                  unit: ' RPM',
+                  minVal: 0,
+                  maxVal: 2000,
+                  initialVal: currentReactor.magneticTargetRPM,
+                  allowDecimal: false
+                })}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  background: 'rgba(15, 23, 42, 0.9)',
+                  border: '1px solid rgba(6, 182, 212, 0.4)',
+                  borderRadius: '8px',
+                  color: '#06b6d4',
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  boxShadow: '0 0 10px rgba(6, 182, 212, 0.1)'
+                }}
+                title="Click to set Magnetic RPM using numeric keypad popup"
+              >
+                SET: {currentReactor.magneticTargetRPM} RPM
+              </div>
 
               <button
                 onClick={() => isCurrentMagneticRunning ? controller.stopMagneticStirrer(currentReactor.id) : controller.startMagneticStirrer(currentReactor.id)}
                 className={isCurrentMagneticRunning ? 'btn-danger' : 'btn-primary'}
-                style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                style={{ fontSize: '0.8rem', padding: '8px 16px' }}
               >
                 {isCurrentMagneticRunning ? 'STOP' : 'START'}
               </button>
