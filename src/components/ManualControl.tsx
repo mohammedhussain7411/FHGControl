@@ -89,11 +89,12 @@ export const ManualControl: React.FC<ManualControlProps> = ({
   const isCurrentMagneticRunning = currentReactor.magneticActive && currentReactor.magneticActualRPM > 0;
   const isCurrentStirringActive = isCurrentOverheadRunning || isCurrentMagneticRunning;
   const isThermalActive = currentReactor.heatingActive || currentReactor.coolingActive;
-  const isHeatingActive = currentReactor.targetTemp >= currentReactor.currentTemp;
+  const activeControlTemp = currentReactor.controlMode === 'REACTOR' ? currentReactor.reactorTemp : currentReactor.jacketTemp;
+  const isHeatingActive = currentReactor.targetTemp >= activeControlTemp;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Temperature Keypad Modal */}
+      {/* Temperature Keypad Popup Modal */}
       {isKeypadOpen && (
         <TempKeypadModal
           isOpen={isKeypadOpen}
@@ -158,7 +159,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
       {/* Main Control Console for Selected Reactor */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
         
-        {/* 1. AUTOMATIC TEMPERATURE SUBSYSTEM PANEL */}
+        {/* 1. DUAL TEMPERATURE SUBSYSTEM PANEL WITH CONTROL MODE SELECTOR */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -185,21 +186,86 @@ export const ManualControl: React.FC<ManualControlProps> = ({
               </button>
 
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Thermometer size={20} color={isHeatingActive ? "#f97316" : "#38bdf8"} /> TEMPERATURE CONTROL
+                <Thermometer size={20} color={isHeatingActive ? "#f97316" : "#38bdf8"} /> DUAL TEMPERATURE CONTROL
               </h3>
             </div>
 
             <span style={{ fontSize: '0.75rem', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '3px 10px', borderRadius: '10px', fontWeight: 600 }}>
-              -20°C to +200°C Auto PID
+              Cascade PID Control
             </span>
           </div>
 
-          {/* Actual vs Target Temperature Display (CLICK TARGET TO OPEN KEYPAD MODAL) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', background: 'rgba(15, 23, 42, 0.6)', padding: '16px', borderRadius: '12px' }}>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ACTUAL TEMP (PT100)</div>
-              <div className="font-mono" style={{ fontSize: '2.4rem', fontWeight: 700, color: isHeatingActive ? '#f97316' : '#38bdf8' }}>
-                {currentReactor.pt100Fault ? 'FAULT' : `${currentReactor.currentTemp.toFixed(1)}°C`}
+          {/* CONTROL MODE SELECTION (OPTION OF WHICH TEMP NEED TO BE CONTROLLED) */}
+          <div style={{ background: 'rgba(2, 6, 23, 0.8)', padding: '6px', borderRadius: '10px', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 600 }}>
+              SELECT TEMPERATURE TO BE CONTROLLED BY PID:
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => controller.setControlMode(currentReactor.id, 'REACTOR')}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  border: currentReactor.controlMode === 'REACTOR' ? '1px solid #38bdf8' : '1px solid transparent',
+                  background: currentReactor.controlMode === 'REACTOR' ? 'rgba(2, 132, 199, 0.3)' : 'rgba(30, 41, 59, 0.5)',
+                  color: currentReactor.controlMode === 'REACTOR' ? '#38bdf8' : '#94a3b8',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: currentReactor.controlMode === 'REACTOR' ? '#38bdf8' : '#64748b' }} />
+                REACTOR TEMP (INTERNAL)
+              </button>
+
+              <button
+                onClick={() => controller.setControlMode(currentReactor.id, 'JACKET')}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  border: currentReactor.controlMode === 'JACKET' ? '1px solid #eab308' : '1px solid transparent',
+                  background: currentReactor.controlMode === 'JACKET' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(30, 41, 59, 0.5)',
+                  color: currentReactor.controlMode === 'JACKET' ? '#fde047' : '#94a3b8',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: currentReactor.controlMode === 'JACKET' ? '#fde047' : '#64748b' }} />
+                JACKET TEMP (CIRCULATION)
+              </button>
+            </div>
+          </div>
+
+          {/* Actual vs Target Temperature Display */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', background: 'rgba(15, 23, 42, 0.6)', padding: '16px', borderRadius: '12px' }}>
+            <div style={{ borderRight: '1px solid var(--border-glass)', paddingRight: '8px' }}>
+              <div style={{ fontSize: '0.7rem', color: currentReactor.controlMode === 'REACTOR' ? '#38bdf8' : 'var(--text-muted)', fontWeight: 600 }}>
+                REACTOR TEMP {currentReactor.controlMode === 'REACTOR' && '(CONTROLLED)'}
+              </div>
+              <div className="font-mono" style={{ fontSize: '1.8rem', fontWeight: 700, color: isHeatingActive ? '#f97316' : '#38bdf8' }}>
+                {currentReactor.pt100Fault ? 'FAULT' : `${currentReactor.reactorTemp.toFixed(1)}°C`}
+              </div>
+            </div>
+
+            <div style={{ borderRight: '1px solid var(--border-glass)', paddingRight: '8px' }}>
+              <div style={{ fontSize: '0.7rem', color: currentReactor.controlMode === 'JACKET' ? '#fde047' : 'var(--text-muted)', fontWeight: 600 }}>
+                JACKET TEMP {currentReactor.controlMode === 'JACKET' && '(CONTROLLED)'}
+              </div>
+              <div className="font-mono" style={{ fontSize: '1.8rem', fontWeight: 700, color: '#fde047' }}>
+                {currentReactor.pt100Fault ? 'FAULT' : `${currentReactor.jacketTemp.toFixed(1)}°C`}
               </div>
             </div>
 
@@ -208,15 +274,15 @@ export const ManualControl: React.FC<ManualControlProps> = ({
               style={{
                 cursor: 'pointer',
                 background: 'rgba(30, 41, 59, 0.6)',
-                padding: '8px 12px',
+                padding: '6px 10px',
                 borderRadius: '10px',
                 border: '1px solid rgba(56, 189, 248, 0.4)',
                 boxShadow: '0 0 15px rgba(56, 189, 248, 0.15)'
               }}
-              title="Click to open numeric keypad window to set temperature"
+              title="Click to open numeric keypad popup to set target temperature"
             >
-              <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 600 }}>TARGET SETPOINT (CLICK)</div>
-              <div className="font-mono" style={{ fontSize: '2.4rem', fontWeight: 700, color: '#ffffff' }}>
+              <div style={{ fontSize: '0.7rem', color: '#38bdf8', fontWeight: 600 }}>SETPOINT (CLICK)</div>
+              <div className="font-mono" style={{ fontSize: '1.8rem', fontWeight: 700, color: '#ffffff' }}>
                 {currentReactor.targetTemp.toFixed(1)}°C
               </div>
             </div>
@@ -228,7 +294,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
             className="btn-primary"
             style={{ width: '100%', justifyContent: 'center', fontSize: '0.9rem', padding: '12px' }}
           >
-            <Thermometer size={18} /> Open Numeric Touch Keypad Window
+            <Thermometer size={18} /> Open Numeric Touch Keypad Popup
           </button>
 
           {/* Quick Temperature Preset Buttons */}
@@ -245,7 +311,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
             ))}
           </div>
 
-          {/* CLIMATE STATUS DISPLAY WITH ICON AND POWER OUTPUT (NO TEXT LABELS) */}
+          {/* CLIMATE STATUS DISPLAY WITH ICON AND POWER OUTPUT */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -276,7 +342,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
                   {!isThermalActive ? 'TEMP CONTROL OFF' : `POWER OUTPUT: ${Math.abs(currentReactor.thermalPowerPct)}%`}
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Click Play/Stop button above to start or stop thermal PID loop.
+                  Controlling {currentReactor.controlMode === 'REACTOR' ? 'Internal Reaction Solution' : 'Circulation Thermal Jacket'} Temp.
                 </div>
               </div>
             </div>

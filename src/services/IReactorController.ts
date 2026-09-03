@@ -7,6 +7,7 @@ export interface IReactorController {
   
   // High-level Reactor Commands
   setTargetTemperature(reactorId: number, tempCelsius: number): Promise<void>;
+  setControlMode(reactorId: number, mode: 'REACTOR' | 'JACKET'): Promise<void>;
   setOverheadSpeed(reactorId: number, rpm: number): Promise<void>;
   setMagneticSpeed(reactorId: number, rpm: number): Promise<void>;
   

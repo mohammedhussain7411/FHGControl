@@ -45,7 +45,10 @@ export class SimulatorReactorController implements IReactorController {
       id,
       name,
       currentTemp,
+      reactorTemp: currentTemp,
+      jacketTemp: currentTemp + (isHeating ? 2.5 : -2.5),
       targetTemp,
+      controlMode: 'REACTOR',
       heatingActive: isHeating,
       coolingActive: !isHeating,
       thermalPowerPct: 0,
@@ -100,6 +103,15 @@ export class SimulatorReactorController implements IReactorController {
 
   // --- Command Implementations ---
 
+  public async setControlMode(reactorId: number, mode: 'REACTOR' | 'JACKET'): Promise<void> {
+    const idx = reactorId - 1;
+    if (idx >= 0 && idx < 4) {
+      this.states[idx].controlMode = mode;
+      this.integralErr[idx] = 0; // reset PID integral on control mode switch
+      this.notifySubscribers();
+    }
+  }
+
   public async setTargetTemperature(reactorId: number, tempCelsius: number): Promise<void> {
     const idx = reactorId - 1;
     if (idx >= 0 && idx < 4) {
@@ -107,9 +119,9 @@ export class SimulatorReactorController implements IReactorController {
       this.states[idx].targetTemp = clamped;
       this.integralErr[idx] = 0; // reset integral on new setpoint
 
-      // If thermal control is active, automatically adjust heating/cooling mode
+      const activeTemp = this.states[idx].controlMode === 'REACTOR' ? this.states[idx].reactorTemp : this.states[idx].jacketTemp;
       if (this.states[idx].heatingActive || this.states[idx].coolingActive) {
-        if (clamped >= this.states[idx].currentTemp) {
+        if (clamped >= activeTemp) {
           this.states[idx].heatingActive = true;
           this.states[idx].coolingActive = false;
         } else {
@@ -164,7 +176,8 @@ export class SimulatorReactorController implements IReactorController {
     const idx = reactorId - 1;
     if (idx >= 0 && idx < 4) {
       const state = this.states[idx];
-      if (state.targetTemp >= state.currentTemp) {
+      const activeTemp = state.controlMode === 'REACTOR' ? state.reactorTemp : state.jacketTemp;
+      if (state.targetTemp >= activeTemp) {
         state.heatingActive = true;
         state.coolingActive = false;
       } else {
@@ -189,7 +202,8 @@ export class SimulatorReactorController implements IReactorController {
     const idx = reactorId - 1;
     if (idx >= 0 && idx < 4) {
       const state = this.states[idx];
-      if (state.targetTemp < state.currentTemp) {
+      const activeTemp = state.controlMode === 'REACTOR' ? state.reactorTemp : state.jacketTemp;
+      if (state.targetTemp < activeTemp) {
         state.coolingActive = true;
         state.heatingActive = false;
       } else {
@@ -300,7 +314,7 @@ export class SimulatorReactorController implements IReactorController {
     };
   }
 
-  // --- Physics & Physics Simulation Loop ---
+  // --- Physics & Dual-Jacket Thermodynamics Simulation Loop ---
 
   private startSimulationLoop(): void {
     const dtSeconds = 0.2; // 200ms per tick
@@ -321,12 +335,14 @@ export class SimulatorReactorController implements IReactorController {
         state.stepTimerSeconds += dt;
       }
 
+      const activeTemp = state.controlMode === 'REACTOR' ? state.reactorTemp : state.jacketTemp;
+
       // AUTOMATIC CLIMATE CONTROL SWITCHING (only if thermal control is active):
       if (state.heatingActive || state.coolingActive) {
-        if (state.targetTemp > state.currentTemp + 0.1) {
+        if (state.targetTemp > activeTemp + 0.1) {
           state.heatingActive = true;
           state.coolingActive = false;
-        } else if (state.targetTemp < state.currentTemp - 0.1) {
+        } else if (state.targetTemp < activeTemp - 0.1) {
           state.coolingActive = true;
           state.heatingActive = false;
         }
@@ -334,7 +350,7 @@ export class SimulatorReactorController implements IReactorController {
 
       // Check Fault Injections
       state.pt100Fault = this.faultConfig.pt100Open[i];
-      state.overTempFault = this.faultConfig.overTemp[i] || state.currentTemp > 210;
+      state.overTempFault = this.faultConfig.overTemp[i] || state.reactorTemp > 210 || state.jacketTemp > 210;
       state.stirrerStallFault = this.faultConfig.stirrerStall[i];
       state.chillerTripFault = this.faultConfig.chillerFailure;
       state.commLossFault = this.faultConfig.commLoss;
@@ -346,8 +362,10 @@ export class SimulatorReactorController implements IReactorController {
         state.thermalPowerPct = 0;
       }
 
-      // 1. Thermal Block Thermodynamics & PID Simulation
+      // 1. Dual-Jacket Thermodynamics & PID Simulation
       if (state.pt100Fault) {
+        state.reactorTemp = -999;
+        state.jacketTemp = -999;
         state.currentTemp = -999;
       } else {
         const isThermalActive = state.heatingActive || state.coolingActive;
@@ -355,17 +373,20 @@ export class SimulatorReactorController implements IReactorController {
         if (!isThermalActive) {
           // Thermal control is STOPPED by Play/Stop button -> zero thermal power, cools naturally to ambient
           state.thermalPowerPct = 0;
-          const kLoss = 0.008;
-          const ambientLoss = kLoss * (state.currentTemp - ambientTemp);
-          state.currentTemp -= ambientLoss * dt;
-          state.currentTemp = Number(state.currentTemp.toFixed(2));
+          const kLossJacket = 0.010;
+          const kLossReactor = 0.005;
+          const kJacketToReactor = 0.035;
+
+          state.jacketTemp -= kLossJacket * (state.jacketTemp - ambientTemp) * dt;
+          state.reactorTemp += kJacketToReactor * (state.jacketTemp - state.reactorTemp) * dt;
+          state.reactorTemp -= kLossReactor * (state.reactorTemp - ambientTemp) * dt;
         } else {
-          const err = state.targetTemp - state.currentTemp;
+          const err = state.targetTemp - activeTemp;
           
           // PID gains
-          const Kp = 6.0;
-          const Ki = 0.05;
-          const Kd = 1.2;
+          const Kp = 6.5;
+          const Ki = 0.06;
+          const Kd = 1.3;
 
           this.integralErr[i] += err * dt;
           this.integralErr[i] = Math.max(-100, Math.min(100, this.integralErr[i]));
@@ -380,16 +401,26 @@ export class SimulatorReactorController implements IReactorController {
           pidOutput = Math.max(-100, Math.min(100, pidOutput));
           state.thermalPowerPct = Number(pidOutput.toFixed(1));
 
-          // Heat transfer equation:
-          const kLoss = 0.008;
-          const heaterHeatingRate = pidOutput > 0 ? pidOutput * 0.045 : 0;
-          const chillerCoolingRate = pidOutput < 0 ? pidOutput * 0.040 : 0;
-          const ambientLoss = kLoss * (state.currentTemp - ambientTemp);
+          // Heat transfer equations for Jacket & Reactor fluid:
+          const kJacketLoss = 0.008;
+          const kJacketToReactor = 0.040;
+          const kReactorLoss = 0.003;
 
-          const dT = (heaterHeatingRate + chillerCoolingRate - ambientLoss) * dt;
-          state.currentTemp += dT;
-          state.currentTemp = Number(state.currentTemp.toFixed(2));
+          const heaterRate = pidOutput > 0 ? pidOutput * 0.050 : 0;
+          const chillerRate = pidOutput < 0 ? pidOutput * 0.045 : 0;
+
+          // Jacket responds directly to thermal unit:
+          const dJacket = (heaterRate + chillerRate - kJacketLoss * (state.jacketTemp - ambientTemp) - kJacketToReactor * (state.jacketTemp - state.reactorTemp)) * dt;
+          state.jacketTemp += dJacket;
+
+          // Reactor fluid receives heat transfer from jacket:
+          const dReactor = (kJacketToReactor * (state.jacketTemp - state.reactorTemp) - kReactorLoss * (state.reactorTemp - ambientTemp)) * dt;
+          state.reactorTemp += dReactor;
         }
+
+        state.reactorTemp = Number(state.reactorTemp.toFixed(2));
+        state.jacketTemp = Number(state.jacketTemp.toFixed(2));
+        state.currentTemp = state.controlMode === 'REACTOR' ? state.reactorTemp : state.jacketTemp;
       }
 
       // 2. Overhead Stirrer Execution

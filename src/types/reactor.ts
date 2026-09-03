@@ -28,12 +28,15 @@ export interface ReactorState {
   id: number; // 1..4
   name: string;
   
-  // Temperature
-  currentTemp: number;       // °C
-  targetTemp: number;        // °C (-20°C to +200°C)
+  // Temperature (Dual Sensors: Internal Reactor & Circulating Fluid Jacket)
+  currentTemp: number;        // °C (Active control temperature: reactorTemp or jacketTemp)
+  reactorTemp: number;        // °C (Internal reaction solution PT100 sensor)
+  jacketTemp: number;         // °C (Thermal fluid circulating jacket PT100 sensor)
+  targetTemp: number;         // °C (-20°C to +200°C)
+  controlMode: 'REACTOR' | 'JACKET'; // Which temperature sensor is being controlled by PID
   heatingActive: boolean;
   coolingActive: boolean;
-  thermalPowerPct: number;   // -100% (max cooling) to +100% (max heating)
+  thermalPowerPct: number;    // -100% (max cooling) to +100% (max heating)
   
   // Stirring - Overhead
   overheadActualRPM: number;  // 0, 50 - 1500

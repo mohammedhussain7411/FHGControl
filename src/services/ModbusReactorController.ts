@@ -38,6 +38,10 @@ export class ModbusReactorController implements IReactorController {
     return this.status;
   }
 
+  public async setControlMode(reactorId: number, mode: 'REACTOR' | 'JACKET'): Promise<void> {
+    console.log(`[Modbus TCP] Write HoldingReg R${reactorId}_ControlMode = ${mode}`);
+  }
+
   public async setTargetTemperature(reactorId: number, tempCelsius: number): Promise<void> {
     console.log(`[Modbus TCP] Write HoldingReg R${reactorId}_Temp = ${tempCelsius}°C`);
   }
