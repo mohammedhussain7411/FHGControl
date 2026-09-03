@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Thermometer, 
   Fan, 
   Flame, 
   Snowflake, 
@@ -44,9 +43,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const handleToggleThermalControl = (r: ReactorState) => {
     const isThermalActive = r.heatingActive || r.coolingActive;
     if (isThermalActive) {
-      controller.stopHeating(r.id); // stops temperature control
+      controller.stopHeating(r.id);
     } else {
-      controller.startHeating(r.id); // starts temperature PID control
+      controller.startHeating(r.id);
     }
   };
 
@@ -160,11 +159,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           const isThermalActive = r.heatingActive || r.coolingActive;
           const activeControlTemp = r.controlMode === 'REACTOR' ? r.reactorTemp : r.jacketTemp;
           const isHeating = r.targetTemp >= activeControlTemp;
-          const tempColor = r.pt100Fault
-            ? '#ef4444'
-            : isHeating
-            ? '#f97316'
-            : '#38bdf8';
 
           return (
             <div
@@ -232,10 +226,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
 
-              {/* DUAL SENSOR TEMPERATURE READOUT PANEL WITH CONTROL MODE SELECTOR */}
+              {/* DUAL SENSOR TEMPERATURE READOUT PANEL (CLEAN T_R & T_J SYMBOLS, NO WORDINGS) */}
               <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border-glass)' }}>
                 
-                {/* Header Row: Play/Stop Button + Controlled Sensor Selector + Flame/Snowflake Icon */}
+                {/* Header Row: Play/Stop Button + Clean T_R / T_J Mode Selector + Flame/Snowflake Icon */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {/* PLAY / STOP SYMBOL BUTTON FOR TEMPERATURE CONTROL */}
@@ -255,14 +249,49 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         boxShadow: isThermalActive ? '0 0 10px rgba(239,68,68,0.6)' : '0 0 10px rgba(16,185,129,0.6)',
                         transition: 'all 0.2s'
                       }}
-                      title={isThermalActive ? "STOP Temperature PID Control" : "PLAY / START Temperature PID Control"}
+                      title={isThermalActive ? "STOP Temperature Control" : "PLAY / START Temperature Control"}
                     >
                       {isThermalActive ? <Square size={12} fill="#ffffff" /> : <Play size={12} fill="#ffffff" style={{ marginLeft: '2px' }} />}
                     </button>
 
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Thermometer size={14} color={tempColor} /> TEMP
-                    </span>
+                    {/* CLEAN CONTROL MODE SELECTOR TOGGLE (T_R vs T_J) */}
+                    <div style={{ display: 'flex', background: 'rgba(2, 6, 23, 0.8)', padding: '2px', borderRadius: '6px', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                      <button
+                        onClick={() => controller.setControlMode(r.id, 'REACTOR')}
+                        style={{
+                          padding: '3px 10px',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          borderRadius: '4px',
+                          border: 'none',
+                          background: r.controlMode === 'REACTOR' ? '#0284c7' : 'transparent',
+                          color: r.controlMode === 'REACTOR' ? '#ffffff' : '#94a3b8',
+                          cursor: 'pointer',
+                          fontFamily: 'monospace'
+                        }}
+                        title="Control T_R (Reactor Temperature)"
+                      >
+                        T<sub>R</sub>
+                      </button>
+
+                      <button
+                        onClick={() => controller.setControlMode(r.id, 'JACKET')}
+                        style={{
+                          padding: '3px 10px',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          borderRadius: '4px',
+                          border: 'none',
+                          background: r.controlMode === 'JACKET' ? '#eab308' : 'transparent',
+                          color: r.controlMode === 'JACKET' ? '#ffffff' : '#94a3b8',
+                          cursor: 'pointer',
+                          fontFamily: 'monospace'
+                        }}
+                        title="Control T_J (Jacket Temperature)"
+                      >
+                        T<sub>J</sub>
+                      </button>
+                    </div>
                   </div>
 
                   {/* HIGHLIGHTED FLAME / SNOWFLAKE ICON ONLY */}
@@ -313,83 +342,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 </div>
 
-                {/* OPTION OF WHICH TEMP NEED TO BE CONTROLLED (CONTROL MODE SELECTOR TABS) */}
-                <div style={{ display: 'flex', background: 'rgba(2, 6, 23, 0.8)', padding: '3px', borderRadius: '8px', marginBottom: '12px', border: '1px solid rgba(148, 163, 184, 0.15)' }}>
-                  <button
-                    onClick={() => controller.setControlMode(r.id, 'REACTOR')}
-                    style={{
-                      flex: 1,
-                      padding: '5px',
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      borderRadius: '6px',
-                      border: 'none',
-                      background: r.controlMode === 'REACTOR' ? '#0284c7' : 'transparent',
-                      color: r.controlMode === 'REACTOR' ? '#ffffff' : '#94a3b8',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px'
-                    }}
-                    title="PID loop controls internal reaction solution temperature"
-                  >
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: r.controlMode === 'REACTOR' ? '#38bdf8' : 'transparent' }} />
-                    CONTROL REACTOR TEMP
-                  </button>
-
-                  <button
-                    onClick={() => controller.setControlMode(r.id, 'JACKET')}
-                    style={{
-                      flex: 1,
-                      padding: '5px',
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      borderRadius: '6px',
-                      border: 'none',
-                      background: r.controlMode === 'JACKET' ? '#eab308' : 'transparent',
-                      color: r.controlMode === 'JACKET' ? '#ffffff' : '#94a3b8',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px'
-                    }}
-                    title="PID loop controls circulation jacket temperature"
-                  >
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: r.controlMode === 'JACKET' ? '#fde047' : 'transparent' }} />
-                    CONTROL JACKET TEMP
-                  </button>
-                </div>
-
-                {/* DUAL SENSOR READOUTS GRID: REACTOR TEMP & JACKET TEMP */}
+                {/* DUAL SENSOR READOUTS GRID: T_R , T_J & SETPOINT (NO WORDINGS) */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', alignItems: 'center' }}>
-                  {/* REACTOR TEMP */}
+                  {/* T_R (REACTOR TEMP) */}
                   <div style={{
                     background: r.controlMode === 'REACTOR' ? 'rgba(2, 132, 199, 0.2)' : 'rgba(15, 23, 42, 0.5)',
                     padding: '8px 10px',
                     borderRadius: '8px',
                     border: r.controlMode === 'REACTOR' ? '1px solid #0284c7' : '1px solid var(--border-glass)'
                   }}>
-                    <div style={{ fontSize: '0.65rem', color: r.controlMode === 'REACTOR' ? '#38bdf8' : 'var(--text-muted)', fontWeight: 600 }}>
-                      REACTOR {r.controlMode === 'REACTOR' && '(CONTROLLED)'}
+                    <div style={{ fontSize: '0.75rem', color: r.controlMode === 'REACTOR' ? '#38bdf8' : 'var(--text-muted)', fontWeight: 700, fontFamily: 'monospace' }}>
+                      T<sub>R</sub>
                     </div>
                     <div className="font-mono" style={{ fontSize: '1.4rem', fontWeight: 700, color: r.pt100Fault ? '#ef4444' : '#ffffff' }}>
                       {r.pt100Fault ? 'FAULT' : `${r.reactorTemp.toFixed(1)}°C`}
                     </div>
                   </div>
 
-                  {/* JACKET TEMP */}
+                  {/* T_J (JACKET TEMP) */}
                   <div style={{
                     background: r.controlMode === 'JACKET' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(15, 23, 42, 0.5)',
                     padding: '8px 10px',
                     borderRadius: '8px',
                     border: r.controlMode === 'JACKET' ? '1px solid #eab308' : '1px solid var(--border-glass)'
                   }}>
-                    <div style={{ fontSize: '0.65rem', color: r.controlMode === 'JACKET' ? '#fde047' : 'var(--text-muted)', fontWeight: 600 }}>
-                      JACKET {r.controlMode === 'JACKET' && '(CONTROLLED)'}
+                    <div style={{ fontSize: '0.75rem', color: r.controlMode === 'JACKET' ? '#fde047' : 'var(--text-muted)', fontWeight: 700, fontFamily: 'monospace' }}>
+                      T<sub>J</sub>
                     </div>
                     <div className="font-mono" style={{ fontSize: '1.4rem', fontWeight: 700, color: r.pt100Fault ? '#ef4444' : '#ffffff' }}>
                       {r.pt100Fault ? 'FAULT' : `${r.jacketTemp.toFixed(1)}°C`}
@@ -411,7 +389,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     }}
                     title="Click to change setpoint using numeric keypad"
                   >
-                    <div style={{ fontSize: '0.62rem', color: '#38bdf8', fontWeight: 600 }}>SETPOINT</div>
+                    <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700, fontFamily: 'monospace' }}>
+                      T<sub>SET</sub>
+                    </div>
                     <div className="font-mono" style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ffffff' }}>
                       {r.targetTemp.toFixed(1)}°C
                     </div>
