@@ -26,32 +26,36 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
 
   const handleToggleReactorStirring = (r: ReactorState) => {
-    const isStirring = r.overheadActive || r.magneticActive;
-    if (isStirring) {
+    const isStirringActive = r.overheadActive || r.magneticActive || r.overheadActualRPM > 0 || r.magneticActualRPM > 0;
+    if (isStirringActive) {
       controller.stopOverheadStirrer(r.id);
       controller.stopMagneticStirrer(r.id);
     } else {
-      if (r.overheadTargetRPM === 0) controller.setOverheadSpeed(r.id, 600);
-      if (r.magneticTargetRPM === 0) controller.setMagneticSpeed(r.id, 800);
+      // Default to overhead stirring if starting via main status fan icon
+      const targetOverhead = r.overheadTargetRPM > 0 ? r.overheadTargetRPM : 600;
+      controller.setOverheadSpeed(r.id, targetOverhead);
       controller.startOverheadStirrer(r.id);
-      controller.startMagneticStirrer(r.id);
     }
   };
 
   const handleToggleOverhead = (r: ReactorState) => {
-    if (r.overheadActive) {
+    const isOverheadRunning = r.overheadActive || r.overheadActualRPM > 0;
+    if (isOverheadRunning) {
       controller.stopOverheadStirrer(r.id);
     } else {
-      if (r.overheadTargetRPM === 0) controller.setOverheadSpeed(r.id, 600);
+      const target = r.overheadTargetRPM > 0 ? r.overheadTargetRPM : 600;
+      controller.setOverheadSpeed(r.id, target);
       controller.startOverheadStirrer(r.id);
     }
   };
 
   const handleToggleMagnetic = (r: ReactorState) => {
-    if (r.magneticActive) {
+    const isMagneticRunning = r.magneticActive || r.magneticActualRPM > 0;
+    if (isMagneticRunning) {
       controller.stopMagneticStirrer(r.id);
     } else {
-      if (r.magneticTargetRPM === 0) controller.setMagneticSpeed(r.id, 800);
+      const target = r.magneticTargetRPM > 0 ? r.magneticTargetRPM : 800;
+      controller.setMagneticSpeed(r.id, target);
       controller.startMagneticStirrer(r.id);
     }
   };
@@ -98,12 +102,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ background: 'rgba(168, 85, 247, 0.15)', padding: '12px', borderRadius: '10px', color: '#a855f7' }}>
-            <Fan size={24} className={reactors.some(r => r.overheadActive || r.magneticActive) ? 'spin-fast' : ''} />
+            <Fan size={24} className={reactors.some(r => (r.overheadActive && r.overheadActualRPM > 0) || (r.magneticActive && r.magneticActualRPM > 0)) ? 'spin-fast' : ''} />
           </div>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ACTIVE STIRRERS</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-main)' }}>
-              {reactors.filter(r => r.overheadActive || r.magneticActive).length} Motors Running
+              {reactors.filter(r => (r.overheadActive && r.overheadActualRPM > 0) || (r.magneticActive && r.magneticActualRPM > 0)).length} Motors Running
             </div>
           </div>
         </div>
@@ -113,7 +117,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
         {reactors.map(r => {
           const isAlarm = r.status === 'ALARM';
-          const isRunning = r.status === 'RUNNING' || r.overheadActualRPM > 0 || r.magneticActualRPM > 0;
+          const isStirringActive = (r.overheadActive && r.overheadActualRPM > 0) || (r.magneticActive && r.magneticActualRPM > 0);
           const tempColor = r.pt100Fault
             ? '#ef4444'
             : r.currentTemp > 75
@@ -167,25 +171,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 {/* Status Indicator: CLICK FAN ICON TO START / STOP STIRRING */}
                 <div 
                   onClick={() => handleToggleReactorStirring(r)}
-                  title={isRunning ? "Click Fan Icon to STOP Stirring" : "Click Fan Icon to START Stirring"}
+                  title={isStirringActive ? "Click Fan Icon to STOP Stirring" : "Click Fan Icon to START Stirring"}
                   style={{
                     padding: '8px',
                     borderRadius: '50%',
-                    background: isAlarm ? 'rgba(239,68,68,0.2)' : isRunning ? 'rgba(16,185,129,0.25)' : 'rgba(148,163,184,0.15)',
-                    color: isAlarm ? '#ef4444' : isRunning ? '#10b981' : '#94a3b8',
-                    border: `1px solid ${isAlarm ? '#ef4444' : isRunning ? '#10b981' : 'rgba(148,163,184,0.3)'}`,
+                    background: isAlarm ? 'rgba(239,68,68,0.2)' : isStirringActive ? 'rgba(16,185,129,0.25)' : 'rgba(148,163,184,0.15)',
+                    color: isAlarm ? '#ef4444' : isStirringActive ? '#10b981' : '#94a3b8',
+                    border: `1px solid ${isAlarm ? '#ef4444' : isStirringActive ? '#10b981' : 'rgba(148,163,184,0.3)'}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: isRunning ? '0 0 15px rgba(16,185,129,0.5)' : undefined,
+                    boxShadow: isStirringActive ? '0 0 15px rgba(16,185,129,0.5)' : undefined,
                     cursor: 'pointer',
-                    transition: 'transform 0.2s, background 0.2s'
+                    transition: 'all 0.2s'
                   }}
                 >
                   {isAlarm ? (
                     <AlertTriangle size={18} className="pulse" />
                   ) : (
-                    <Fan size={18} className={isRunning ? 'spin-fast' : ''} />
+                    <Fan size={18} className={isStirringActive ? 'spin-fast' : ''} />
                   )}
                 </div>
               </div>
@@ -241,7 +245,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <div style={{ fontSize: '0.7rem', color: '#a855f7', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                     <button
                       onClick={() => handleToggleOverhead(r)}
-                      title={r.overheadActive ? "Click Fan to Stop Overhead Stirrer" : "Click Fan to Start Overhead Stirrer"}
+                      title={r.overheadActive && r.overheadActualRPM > 0 ? "Click Fan to Stop Overhead Stirrer" : "Click Fan to Start Overhead Stirrer"}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -252,7 +256,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         alignItems: 'center'
                       }}
                     >
-                      <Fan size={16} className={r.overheadActualRPM > 0 ? 'spin-fast' : ''} />
+                      <Fan size={16} className={r.overheadActive && r.overheadActualRPM > 0 ? 'spin-fast' : ''} />
                     </button>
                     <span>OVERHEAD</span>
                   </div>
@@ -269,7 +273,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <div style={{ fontSize: '0.7rem', color: '#06b6d4', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                     <button
                       onClick={() => handleToggleMagnetic(r)}
-                      title={r.magneticActive ? "Click Fan to Stop Magnetic Stirrer" : "Click Fan to Start Magnetic Stirrer"}
+                      title={r.magneticActive && r.magneticActualRPM > 0 ? "Click Fan to Stop Magnetic Stirrer" : "Click Fan to Start Magnetic Stirrer"}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -280,7 +284,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         alignItems: 'center'
                       }}
                     >
-                      <Fan size={16} className={r.magneticActualRPM > 0 ? 'spin-slow' : ''} />
+                      <Fan size={16} className={r.magneticActive && r.magneticActualRPM > 0 ? 'spin-slow' : ''} />
                     </button>
                     <span>MAGNETIC</span>
                   </div>

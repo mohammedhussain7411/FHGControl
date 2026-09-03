@@ -56,16 +56,15 @@ export const ManualControl: React.FC<ManualControlProps> = ({
   };
 
   const handleToggleTabStirring = (e: React.MouseEvent, r: ReactorState) => {
-    e.stopPropagation(); // prevent tab select conflict if desired, or handle both
-    const isStirring = r.overheadActive || r.magneticActive;
+    e.stopPropagation();
+    const isStirring = (r.overheadActive && r.overheadActualRPM > 0) || (r.magneticActive && r.magneticActualRPM > 0);
     if (isStirring) {
       controller.stopOverheadStirrer(r.id);
       controller.stopMagneticStirrer(r.id);
     } else {
-      if (r.overheadTargetRPM === 0) controller.setOverheadSpeed(r.id, 600);
-      if (r.magneticTargetRPM === 0) controller.setMagneticSpeed(r.id, 800);
+      const targetOverhead = r.overheadTargetRPM > 0 ? r.overheadTargetRPM : 600;
+      controller.setOverheadSpeed(r.id, targetOverhead);
       controller.startOverheadStirrer(r.id);
-      controller.startMagneticStirrer(r.id);
     }
   };
 
@@ -76,13 +75,17 @@ export const ManualControl: React.FC<ManualControlProps> = ({
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const isCurrentOverheadRunning = currentReactor.overheadActive && currentReactor.overheadActualRPM > 0;
+  const isCurrentMagneticRunning = currentReactor.magneticActive && currentReactor.magneticActualRPM > 0;
+  const isCurrentStirringActive = isCurrentOverheadRunning || isCurrentMagneticRunning;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Reactor Selector Tabs */}
       <div style={{ display: 'flex', gap: '12px' }}>
         {reactors.map(r => {
           const isSelected = r.id === selectedReactorId;
-          const isRunning = r.status === 'RUNNING' || r.overheadActualRPM > 0 || r.magneticActualRPM > 0;
+          const isStirringActive = (r.overheadActive && r.overheadActualRPM > 0) || (r.magneticActive && r.magneticActualRPM > 0);
           return (
             <button
               key={r.id}
@@ -118,10 +121,10 @@ export const ManualControl: React.FC<ManualControlProps> = ({
               {/* Clickable Fan Icon on Tab Header */}
               <span 
                 onClick={(e) => handleToggleTabStirring(e, r)}
-                title={isRunning ? "Click Fan to Stop Stirring" : "Click Fan to Start Stirring"}
+                title={isStirringActive ? "Click Fan to Stop Stirring" : "Click Fan to Start Stirring"}
                 style={{ padding: '2px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               >
-                <Fan size={16} className={isRunning ? 'spin-fast' : ''} color={isRunning ? '#10b981' : '#64748b'} />
+                <Fan size={16} className={isStirringActive ? 'spin-fast' : ''} color={isStirringActive ? '#10b981' : '#64748b'} />
               </span>
             </button>
           );
@@ -259,10 +262,10 @@ export const ManualControl: React.FC<ManualControlProps> = ({
             <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span
                 onClick={(e) => handleToggleTabStirring(e, currentReactor)}
-                title={currentReactor.overheadActive || currentReactor.magneticActive ? "Click Fan to Stop All Stirring" : "Click Fan to Start All Stirring"}
+                title={isCurrentStirringActive ? "Click Fan to Stop All Stirring" : "Click Fan to Start All Stirring"}
                 style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               >
-                <Fan size={22} color="#a855f7" className={currentReactor.overheadActualRPM > 0 || currentReactor.magneticActualRPM > 0 ? 'spin-fast' : ''} />
+                <Fan size={22} color="#a855f7" className={isCurrentStirringActive ? 'spin-fast' : ''} />
               </span>
               <span>STIRRING CONTROL</span>
             </h3>
@@ -276,11 +279,11 @@ export const ManualControl: React.FC<ManualControlProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a855f7', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span 
-                  onClick={() => currentReactor.overheadActive ? controller.stopOverheadStirrer(currentReactor.id) : (currentReactor.overheadTargetRPM === 0 && controller.setOverheadSpeed(currentReactor.id, 600), controller.startOverheadStirrer(currentReactor.id))}
-                  title={currentReactor.overheadActive ? "Click to Stop Overhead Drive" : "Click to Start Overhead Drive"}
+                  onClick={() => isCurrentOverheadRunning ? controller.stopOverheadStirrer(currentReactor.id) : (controller.setOverheadSpeed(currentReactor.id, currentReactor.overheadTargetRPM || 600), controller.startOverheadStirrer(currentReactor.id))}
+                  title={isCurrentOverheadRunning ? "Click to Stop Overhead Drive" : "Click to Start Overhead Drive"}
                   style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                 >
-                  <Fan size={18} className={currentReactor.overheadActualRPM > 0 ? 'spin-fast' : ''} />
+                  <Fan size={18} className={isCurrentOverheadRunning ? 'spin-fast' : ''} />
                 </span>
                 OVERHEAD BLDC (50 - 1500 RPM)
               </span>
@@ -305,11 +308,11 @@ export const ManualControl: React.FC<ManualControlProps> = ({
               />
 
               <button
-                onClick={() => currentReactor.overheadActive ? controller.stopOverheadStirrer(currentReactor.id) : controller.startOverheadStirrer(currentReactor.id)}
-                className={currentReactor.overheadActive ? 'btn-danger' : 'btn-primary'}
+                onClick={() => isCurrentOverheadRunning ? controller.stopOverheadStirrer(currentReactor.id) : controller.startOverheadStirrer(currentReactor.id)}
+                className={isCurrentOverheadRunning ? 'btn-danger' : 'btn-primary'}
                 style={{ fontSize: '0.8rem', padding: '6px 12px' }}
               >
-                {currentReactor.overheadActive ? 'STOP' : 'START'}
+                {isCurrentOverheadRunning ? 'STOP' : 'START'}
               </button>
             </div>
           </div>
@@ -319,11 +322,11 @@ export const ManualControl: React.FC<ManualControlProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#06b6d4', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span 
-                  onClick={() => currentReactor.magneticActive ? controller.stopMagneticStirrer(currentReactor.id) : (currentReactor.magneticTargetRPM === 0 && controller.setMagneticSpeed(currentReactor.id, 800), controller.startMagneticStirrer(currentReactor.id))}
-                  title={currentReactor.magneticActive ? "Click to Stop Magnetic Drive" : "Click to Start Magnetic Drive"}
+                  onClick={() => isCurrentMagneticRunning ? controller.stopMagneticStirrer(currentReactor.id) : (controller.setMagneticSpeed(currentReactor.id, currentReactor.magneticTargetRPM || 800), controller.startMagneticStirrer(currentReactor.id))}
+                  title={isCurrentMagneticRunning ? "Click to Stop Magnetic Drive" : "Click to Start Magnetic Drive"}
                   style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                 >
-                  <Fan size={18} className={currentReactor.magneticActualRPM > 0 ? 'spin-slow' : ''} />
+                  <Fan size={18} className={isCurrentMagneticRunning ? 'spin-slow' : ''} />
                 </span>
                 MAGNETIC DRIVE (100 - 2000 RPM)
               </span>
@@ -345,11 +348,11 @@ export const ManualControl: React.FC<ManualControlProps> = ({
               />
 
               <button
-                onClick={() => currentReactor.magneticActive ? controller.stopMagneticStirrer(currentReactor.id) : controller.startMagneticStirrer(currentReactor.id)}
-                className={currentReactor.magneticActive ? 'btn-danger' : 'btn-primary'}
+                onClick={() => isCurrentMagneticRunning ? controller.stopMagneticStirrer(currentReactor.id) : controller.startMagneticStirrer(currentReactor.id)}
+                className={isCurrentMagneticRunning ? 'btn-danger' : 'btn-primary'}
                 style={{ fontSize: '0.8rem', padding: '6px 12px' }}
               >
-                {currentReactor.magneticActive ? 'STOP' : 'START'}
+                {isCurrentMagneticRunning ? 'STOP' : 'START'}
               </button>
             </div>
           </div>
