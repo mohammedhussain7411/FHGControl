@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Thermometer, 
   Fan, 
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { ReactorState } from '../types/reactor';
 import type { IReactorController } from '../services/IReactorController';
+import { TempKeypadModal } from './TempKeypadModal';
 
 interface DashboardProps {
   reactors: ReactorState[];
@@ -26,6 +27,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   controller,
   onSelectReactorForManual
 }) => {
+  const [activeKeypadReactor, setActiveKeypadReactor] = useState<ReactorState | null>(null);
 
   const handleToggleReactorStirring = (r: ReactorState) => {
     const isStirringActive = (r.overheadActive && r.overheadActualRPM > 0) || (r.magneticActive && r.magneticActualRPM > 0);
@@ -42,7 +44,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const handleToggleThermalControl = (r: ReactorState) => {
     const isThermalActive = r.heatingActive || r.coolingActive;
     if (isThermalActive) {
-      controller.stopHeating(r.id); // stops both heating and cooling
+      controller.stopHeating(r.id); // stops temperature control
     } else {
       controller.startHeating(r.id); // starts temperature PID control
     }
@@ -70,9 +72,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  const handleAdjustTemp = (reactorId: number, currentTarget: number, delta: number) => {
-    const next = Math.max(-20, Math.min(200, currentTarget + delta));
-    controller.setTargetTemperature(reactorId, Number(next.toFixed(1)));
+  const handleConfirmKeypadTemp = (reactorId: number, newTemp: number) => {
+    controller.setTargetTemperature(reactorId, newTemp);
+    setActiveKeypadReactor(null);
   };
 
   const handleAdjustOverheadRPM = (reactorId: number, currentTarget: number, delta: number) => {
@@ -87,6 +89,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Temperature Keypad Modal */}
+      {activeKeypadReactor && (
+        <TempKeypadModal
+          isOpen={!!activeKeypadReactor}
+          reactorId={activeKeypadReactor.id}
+          reactorName={activeKeypadReactor.name}
+          initialTemp={activeKeypadReactor.targetTemp}
+          onConfirm={handleConfirmKeypadTemp}
+          onCancel={() => setActiveKeypadReactor(null)}
+        />
+      )}
+
       {/* Top Banner Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -217,7 +231,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
 
-              {/* Temperature Readout Section (WITH DEDICATED PLAY/STOP BUTTON FOR TEMP CONTROL) */}
+              {/* Temperature Readout Section (WITH PLAY/STOP SYMBOL & POPUP KEYPAD TRIGGER) */}
               <div style={{ background: 'rgba(15, 23, 42, 0.7)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border-glass)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -297,7 +311,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 </div>
 
-                {/* Actual Temp & Interactive Target Setpoint Input */}
+                {/* Actual Temp & Interactive Target Setpoint Input (CLICK TO OPEN KEYPAD MODAL) */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>ACTUAL</div>
@@ -306,46 +320,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     </div>
                   </div>
 
-                  {/* Direct Setpoint Controls (- / input / +) */}
-                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>SETPOINT (°C)</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <button
-                        onClick={() => handleAdjustTemp(r.id, r.targetTemp, -5)}
-                        style={{ background: 'rgba(30, 41, 59, 0.8)', border: '1px solid var(--border-glass)', color: '#fff', borderRadius: '4px', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                        title="-5°C"
-                      >
-                        <Minus size={12} />
-                      </button>
-
-                      <input
-                        type="number"
-                        min="-20"
-                        max="200"
-                        step="0.5"
-                        className="font-mono"
-                        value={r.targetTemp}
-                        onChange={(e) => controller.setTargetTemperature(r.id, parseFloat(e.target.value) || 0)}
-                        style={{
-                          width: '65px',
-                          padding: '4px',
-                          background: 'rgba(15, 23, 42, 0.9)',
-                          border: '1px solid #38bdf8',
-                          borderRadius: '6px',
-                          color: '#38bdf8',
-                          fontSize: '1rem',
-                          fontWeight: 700,
-                          textAlign: 'center'
-                        }}
-                      />
-
-                      <button
-                        onClick={() => handleAdjustTemp(r.id, r.targetTemp, 5)}
-                        style={{ background: 'rgba(30, 41, 59, 0.8)', border: '1px solid var(--border-glass)', color: '#fff', borderRadius: '4px', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                        title="+5°C"
-                      >
-                        <Plus size={12} />
-                      </button>
+                  {/* SETPOINT BUTTON TRIGGERING TOUCH KEYPAD MODAL */}
+                  <div 
+                    onClick={() => setActiveKeypadReactor(r)}
+                    style={{
+                      textAlign: 'right',
+                      cursor: 'pointer',
+                      background: 'rgba(30, 41, 59, 0.6)',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(56, 189, 248, 0.4)',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 0 10px rgba(56, 189, 248, 0.1)'
+                    }}
+                    title="Click to change temperature setpoint using numeric keypad"
+                  >
+                    <div style={{ fontSize: '0.65rem', color: '#38bdf8', fontWeight: 600 }}>SETPOINT (CLICK)</div>
+                    <div className="font-mono" style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ffffff' }}>
+                      {r.targetTemp.toFixed(1)}°C
                     </div>
                   </div>
                 </div>

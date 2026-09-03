@@ -11,6 +11,7 @@ import {
 import type { ReactorState } from '../types/reactor';
 import type { IReactorController } from '../services/IReactorController';
 import { auditLogger } from '../services/AuditLogger';
+import { TempKeypadModal } from './TempKeypadModal';
 
 interface ManualControlProps {
   reactors: ReactorState[];
@@ -27,22 +28,20 @@ export const ManualControl: React.FC<ManualControlProps> = ({
 }) => {
   const currentReactor = reactors.find(r => r.id === selectedReactorId) || reactors[0];
 
-  const [tempInput, setTempInput] = useState<string>(currentReactor.targetTemp.toString());
+  const [isKeypadOpen, setIsKeypadOpen] = useState<boolean>(false);
   const [overheadInput, setOverheadInput] = useState<string>(currentReactor.overheadTargetRPM.toString());
   const [magneticInput, setMagneticInput] = useState<string>(currentReactor.magneticTargetRPM.toString());
 
   // Update local input state when selected reactor changes
   React.useEffect(() => {
-    setTempInput(currentReactor.targetTemp.toString());
     setOverheadInput(currentReactor.overheadTargetRPM.toString());
     setMagneticInput(currentReactor.magneticTargetRPM.toString());
-  }, [selectedReactorId, currentReactor.targetTemp, currentReactor.overheadTargetRPM, currentReactor.magneticTargetRPM]);
+  }, [selectedReactorId, currentReactor.overheadTargetRPM, currentReactor.magneticTargetRPM]);
 
-  const handleApplyTemp = (val: number) => {
-    const clamped = Math.max(-20, Math.min(200, val));
-    setTempInput(clamped.toString());
-    controller.setTargetTemperature(currentReactor.id, clamped);
-    auditLogger.logAction('Operator', 'OPERATOR', 'Manual Temperature Changed', `Reactor ${currentReactor.id} target temp set to ${clamped}°C`, currentReactor.id, `${currentReactor.targetTemp}°C`, `${clamped}°C`);
+  const handleConfirmKeypadTemp = (reactorId: number, newTemp: number) => {
+    controller.setTargetTemperature(reactorId, newTemp);
+    auditLogger.logAction('Operator', 'OPERATOR', 'Manual Temperature Changed via Keypad', `Reactor ${reactorId} target temp set to ${newTemp}°C`, reactorId, `${currentReactor.targetTemp}°C`, `${newTemp}°C`);
+    setIsKeypadOpen(false);
   };
 
   const handleApplyOverhead = (val: number) => {
@@ -94,6 +93,18 @@ export const ManualControl: React.FC<ManualControlProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Temperature Keypad Modal */}
+      {isKeypadOpen && (
+        <TempKeypadModal
+          isOpen={isKeypadOpen}
+          reactorId={currentReactor.id}
+          reactorName={currentReactor.name}
+          initialTemp={currentReactor.targetTemp}
+          onConfirm={handleConfirmKeypadTemp}
+          onCancel={() => setIsKeypadOpen(false)}
+        />
+      )}
+
       {/* Reactor Selector Tabs */}
       <div style={{ display: 'flex', gap: '12px' }}>
         {reactors.map(r => {
@@ -183,7 +194,7 @@ export const ManualControl: React.FC<ManualControlProps> = ({
             </span>
           </div>
 
-          {/* Actual vs Target Temperature Display */}
+          {/* Actual vs Target Temperature Display (CLICK TARGET TO OPEN KEYPAD MODAL) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', background: 'rgba(15, 23, 42, 0.6)', padding: '16px', borderRadius: '12px' }}>
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ACTUAL TEMP (PT100)</div>
@@ -191,59 +202,43 @@ export const ManualControl: React.FC<ManualControlProps> = ({
                 {currentReactor.pt100Fault ? 'FAULT' : `${currentReactor.currentTemp.toFixed(1)}°C`}
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>TARGET SETPOINT</div>
+
+            <div 
+              onClick={() => setIsKeypadOpen(true)}
+              style={{
+                cursor: 'pointer',
+                background: 'rgba(30, 41, 59, 0.6)',
+                padding: '8px 12px',
+                borderRadius: '10px',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                boxShadow: '0 0 15px rgba(56, 189, 248, 0.15)'
+              }}
+              title="Click to open numeric keypad window to set temperature"
+            >
+              <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 600 }}>TARGET SETPOINT (CLICK)</div>
               <div className="font-mono" style={{ fontSize: '2.4rem', fontWeight: 700, color: '#ffffff' }}>
                 {currentReactor.targetTemp.toFixed(1)}°C
               </div>
             </div>
           </div>
 
-          {/* Slider & Precision Input */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Set Target Temperature (°C)</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <input
-                type="range"
-                min="-20"
-                max="200"
-                step="0.5"
-                value={tempInput}
-                onChange={(e) => handleApplyTemp(parseFloat(e.target.value))}
-                style={{ flex: 1, accentColor: '#38bdf8', cursor: 'pointer' }}
-              />
-              <input
-                type="number"
-                min="-20"
-                max="200"
-                step="0.1"
-                className="font-mono"
-                value={tempInput}
-                onChange={(e) => setTempInput(e.target.value)}
-                onBlur={() => handleApplyTemp(parseFloat(tempInput))}
-                style={{
-                  width: '90px',
-                  padding: '8px',
-                  background: 'rgba(15, 23, 42, 0.8)',
-                  border: '1px solid var(--border-glass)',
-                  borderRadius: '8px',
-                  color: '#ffffff',
-                  fontSize: '1rem',
-                  fontWeight: 600,
-                  textAlign: 'center'
-                }}
-              />
-            </div>
-          </div>
+          {/* Touch Keypad Button Trigger */}
+          <button
+            onClick={() => setIsKeypadOpen(true)}
+            className="btn-primary"
+            style={{ width: '100%', justifyContent: 'center', fontSize: '0.9rem', padding: '12px' }}
+          >
+            <Thermometer size={18} /> Open Numeric Touch Keypad Window
+          </button>
 
           {/* Quick Temperature Preset Buttons */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {[-20, 0, 25, 50, 80, 120, 180, 200].map(t => (
               <button
                 key={t}
-                onClick={() => handleApplyTemp(t)}
+                onClick={() => controller.setTargetTemperature(currentReactor.id, t)}
                 className="btn-secondary"
-                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                style={{ fontSize: '0.75rem', padding: '6px 12px' }}
               >
                 {t}°C
               </button>
